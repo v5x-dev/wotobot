@@ -1,6 +1,6 @@
-# React + TypeScript + Vite
+# wotobot
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A 3D robot editor built with React, TypeScript, Vite, and react-three-fiber.
 
 Currently, two official plugins are available:
 
