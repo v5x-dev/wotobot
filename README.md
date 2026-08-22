@@ -1,32 +1,47 @@
 # wotobot
 
-A 3D robot editor built with React, TypeScript, Vite, and react-three-fiber.
+A browser-based 3D CAD for prototyping VEX-style robots. Built with React, TypeScript, Vite, react-three-fiber, Tailwind CSS, and shadcn/ui.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **3D scene** — perspective/orthographic camera, orbit controls, infinite grid, fullscreen mode
+- **Parts catalog** — pick parts from the sidebar and place them with a live preview that snaps to holes on existing parts
+- **Editing tools** — transform gizmos, move tool, color painting, box select, hole visualization, part focus (`F`)
+- **Clipboard & history** — undo/redo, cut/copy/paste, duplicate, multi-select
+- **Documents** — designs save as `.wbb` files; export the parts list as text
+- **Build constraints** — live total weight readout and polycarbonate budget warnings
 
-## React Compiler
+## Getting started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Then open the printed localhost URL.
+
+## Scripts
+
+| Command           | Description                  |
+| ----------------- | ---------------------------- |
+| `npm run dev`     | Start the dev server         |
+| `npm run build`   | Type-check and build for prod |
+| `npm run preview` | Preview the production build |
+| `npm run lint`    | Lint with oxlint             |
+
+## Keyboard shortcuts
+
+macOS uses `⌘` where Windows/Linux use `Ctrl`.
+
+| Shortcut            | Action      |
+| ------------------- | ----------- |
+| `Ctrl+N` / `O` / `S`| New / Open / Save |
+| `Ctrl+Shift+S`      | Save As     |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / Redo |
+| `Ctrl+X` / `C` / `V`| Cut / Copy / Paste |
+| `Ctrl+D`            | Duplicate   |
+| `Ctrl+A`            | Select All  |
+| `Del`               | Delete selection |
+| `F`                 | Focus camera on selection |
+
+Mouse: right-drag orbits, middle-drag pans.

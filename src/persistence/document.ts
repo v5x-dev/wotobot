@@ -3,7 +3,7 @@ import { partsListText as formatPartsList } from '@/model/weight'
 
 export type { PlacedPart }
 
-export const DOCUMENT_VERSION = 3
+export const DOCUMENT_VERSION = 4
 export const UNTITLED_NAME = 'untitled.wbb'
 export const PASTE_OFFSET = 1
 
@@ -151,6 +151,10 @@ function asPart(value: unknown): PlacedPart | null {
     rotation,
     color: asColor(record.color),
     shape: asShape(record.shape),
+    groupId:
+      typeof record.groupId === 'number' && Number.isInteger(record.groupId)
+        ? record.groupId
+        : undefined,
   }
 }
 

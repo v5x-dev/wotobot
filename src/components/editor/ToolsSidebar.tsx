@@ -1,4 +1,4 @@
-import { CircleDotDashed, Copy, Move3d, MousePointer2, Palette, Scan, Trash2 } from 'lucide-react'
+import { CircleDotDashed, Copy, Group, Move3d, MousePointer2, Palette, Scan, Trash2, Ungroup } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { COLOR_PRESETS, hexToRgb, rgbToHex } from '@/model/colors'
 import type { EditorTool } from '@/editor/useRobotEditor'
@@ -18,6 +18,10 @@ export function ToolsSidebar({
   onFocus,
   showHoles,
   onToggleHoles,
+  canGroup,
+  onGroup,
+  canUngroup,
+  onUngroup,
 }: {
   tool: EditorTool
   onTool: (tool: EditorTool) => void
@@ -27,6 +31,10 @@ export function ToolsSidebar({
   onFocus: () => void
   showHoles: boolean
   onToggleHoles: () => void
+  canGroup: boolean
+  onGroup: () => void
+  canUngroup: boolean
+  onUngroup: () => void
 }) {
   return (
     <div className="pointer-events-auto absolute top-3 left-3 z-20 flex h-fit w-fit flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-sm">
@@ -72,6 +80,27 @@ export function ToolsSidebar({
         onClick={onFocus}
       >
         <Scan />
+      </Button>
+      <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Group"
+        title="Group (Ctrl+G)"
+        disabled={!canGroup}
+        onClick={onGroup}
+      >
+        <Group />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Ungroup"
+        title="Ungroup (Ctrl+Shift+G)"
+        disabled={!canUngroup}
+        onClick={onUngroup}
+      >
+        <Ungroup />
       </Button>
       <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
       <Button

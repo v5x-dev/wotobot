@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Quaternion, Vector3 } from 'three'
-import { connectionGraph, unionConnected } from '@/model/connections'
+import { effectiveGraph, unionConnected } from '@/model/connections'
 import {
   cloneParts,
   DEFAULT_CAMERA,
@@ -27,6 +27,7 @@ import {
   clonePolycarbonateShape,
   defaultPolycarbonateShape,
   findPart,
+  nextGroupId,
   paramError,
   partKey,
   rectanglePolygon,
@@ -123,6 +124,10 @@ export function useRobotEditor() {
     duplicate: () => {},
     deleteSelected: () => {},
     selectAll: () => {},
+    groupSelected: () => {},
+    ungroupSelected: () => {},
+    canGroup: false,
+    canUngroup: false,
     stopPlacing: () => {},
     startMoveSelection: () => {},
     setTool: (_tool: EditorTool) => {},
@@ -142,7 +147,7 @@ export function useRobotEditor() {
   toolRef.current = tool
   colorRef.current = color
 
-  const graph = useMemo(() => connectionGraph(parts), [parts])
+  const graph = useMemo(() => effectiveGraph(parts), [parts])
   const connectedIds = useMemo(
     () => unionConnected(selectedIds, graph),
     [selectedIds, graph],
@@ -318,7 +323,7 @@ export function useRobotEditor() {
         const source = partsRef.current.find((part) => part.instanceId === id)
         if (!source) return
         pushHistory()
-        const ids = unionConnected(selectedIdsRef.current.length ? selectedIdsRef.current : [source.instanceId], connectionGraph(partsRef.current))
+        const ids = unionConnected(selectedIdsRef.current.length ? selectedIdsRef.current : [source.instanceId], effectiveGraph(partsRef.current))
         moveGroupTo(ids, source, position, rotation)
         stopPlacing()
         return
@@ -361,7 +366,7 @@ export function useRobotEditor() {
       pushHistory()
       const ids = unionConnected(
         selectedIdsRef.current.includes(id) ? selectedIdsRef.current : [id],
-        connectionGraph(partsRef.current),
+        effectiveGraph(partsRef.current),
       )
       moveGroupTo(ids, current, position, rotation)
     },
@@ -369,7 +374,7 @@ export function useRobotEditor() {
   )
 
   const deleteSelected = useCallback(() => {
-    const ids = unionConnected(selectedIdsRef.current, connectionGraph(partsRef.current))
+    const ids = unionConnected(selectedIdsRef.current, effectiveGraph(partsRef.current))
     if (ids.size === 0) return
     pushHistory()
     setParts((current) => current.filter((part) => !ids.has(part.instanceId)))
@@ -378,7 +383,7 @@ export function useRobotEditor() {
   }, [pushHistory])
 
   const copy = useCallback(() => {
-    const ids = unionConnected(selectedIdsRef.current, connectionGraph(partsRef.current))
+    const ids = unionConnected(selectedIdsRef.current, effectiveGraph(partsRef.current))
     if (ids.size === 0) return
     setClipboard(
       partsRef.current
@@ -391,6 +396,7 @@ export function useRobotEditor() {
           rotation: [...part.rotation] as [number, number, number],
           color: part.color ? [...part.color] as [number, number, number] : null,
           shape: part.shape ? clonePolycarbonateShape(part.shape) : undefined,
+          groupId: part.groupId,
         })),
     )
   }, [])
@@ -405,6 +411,18 @@ export function useRobotEditor() {
     if (clipboard.length === 0) return
     pushHistory()
     let id = nextIdRef.current
+    let groupId = nextGroupId(partsRef.current)
+    const groupMap = new Map<number, number>()
+    const remapGroup = (gid?: number) => {
+      if (!gid) return undefined
+      let mapped = groupMap.get(gid)
+      if (!mapped) {
+        mapped = groupId
+        groupId += 1
+        groupMap.set(gid, mapped)
+      }
+      return mapped
+    }
     const pasted = clipboard.map((part) => {
       const instanceId = id
       id += 1
@@ -416,6 +434,7 @@ export function useRobotEditor() {
           part.position[1],
           part.position[2] + PASTE_OFFSET,
         ] as [number, number, number],
+        groupId: remapGroup(part.groupId),
       }
     })
     setParts((current) => [...current, ...pasted])
@@ -435,18 +454,30 @@ export function useRobotEditor() {
   }, [clipboard, pushHistory])
 
   const duplicate = useCallback(() => {
-    const ids = unionConnected(selectedIdsRef.current, connectionGraph(partsRef.current))
+    const ids = unionConnected(selectedIdsRef.current, effectiveGraph(partsRef.current))
     if (ids.size === 0) return
     pushHistory()
     let id = nextIdRef.current
+    let groupId = nextGroupId(partsRef.current)
+    const groupMap = new Map<number, number>()
     const copies: PlacedPart[] = []
     for (const part of partsRef.current) {
       if (!ids.has(part.instanceId)) continue
+      let mappedGroup: number | undefined
+      if (part.groupId) {
+        mappedGroup = groupMap.get(part.groupId)
+        if (!mappedGroup) {
+          mappedGroup = groupId
+          groupId += 1
+          groupMap.set(part.groupId, mappedGroup)
+        }
+      }
       copies.push({
         ...part,
         instanceId: id,
         position: [part.position[0] + PASTE_OFFSET, part.position[1], part.position[2] + PASTE_OFFSET],
         color: part.color ? [...part.color] : null,
+        groupId: mappedGroup,
       })
       id += 1
     }
@@ -461,6 +492,30 @@ export function useRobotEditor() {
     setSelectedIds(ids)
     setPrimaryId(ids.at(-1) ?? null)
   }, [])
+
+  const groupSelected = useCallback(() => {
+    if (selectedIdsRef.current.length < 2) return
+    pushHistory()
+    const groupId = nextGroupId(partsRef.current)
+    const ids = new Set(selectedIdsRef.current)
+    setParts((current) =>
+      current.map((part) => (ids.has(part.instanceId) ? { ...part, groupId } : part)),
+    )
+  }, [pushHistory])
+
+  const ungroupSelected = useCallback(() => {
+    const groups = new Set(
+      selectedIdsRef.current.flatMap((id) => {
+        const part = partsRef.current.find((item) => item.instanceId === id)
+        return part?.groupId ? [part.groupId] : []
+      }),
+    )
+    if (groups.size === 0) return
+    pushHistory()
+    setParts((current) =>
+      current.map((part) => (part.groupId && groups.has(part.groupId) ? { ...part, groupId: undefined } : part)),
+    )
+  }, [pushHistory])
 
   const startMoveSelection = useCallback(() => {
     const id = primaryIdRef.current ?? selectedIdsRef.current[0]
@@ -624,6 +679,10 @@ export function useRobotEditor() {
     duplicate,
     deleteSelected,
     selectAll,
+    groupSelected,
+    ungroupSelected,
+    canGroup: selectedIds.length > 1,
+    canUngroup: parts.some((part) => selectedIds.includes(part.instanceId) && part.groupId),
     stopPlacing,
     startMoveSelection,
     setTool: chooseTool,
@@ -739,6 +798,12 @@ export function useRobotEditor() {
         cmd.duplicate()
         return
       }
+      if (key === 'g') {
+        event.preventDefault()
+        if (event.shiftKey) cmd.ungroupSelected()
+        else cmd.groupSelected()
+        return
+      }
       if (key === 'z' && event.shiftKey) {
         event.preventDefault()
         cmd.redo()
@@ -842,6 +907,10 @@ export function useRobotEditor() {
     paste,
     duplicate,
     selectAll,
+    groupSelected,
+    ungroupSelected,
+    canGroup: selectedIds.length > 1,
+    canUngroup: parts.some((part) => selectedIds.includes(part.instanceId) && part.groupId),
     deleteSelected,
   }
 }

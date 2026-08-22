@@ -143,6 +143,21 @@ export function unionConnected(ids: Iterable<number>, graph: Map<number, Set<num
   return all
 }
 
+export function effectiveGraph(parts: PlacedPart[]) {
+  const graph = connectionGraph(parts)
+  const membersByGroup = new Map<number, number[]>()
+  for (const part of parts) {
+    if (!part.groupId) continue
+    const members = membersByGroup.get(part.groupId)
+    if (members) members.push(part.instanceId)
+    else membersByGroup.set(part.groupId, [part.instanceId])
+  }
+  for (const members of membersByGroup.values()) {
+    for (let i = 1; i < members.length; i += 1) link(graph, members[0], members[i])
+  }
+  return graph
+}
+
 export function isTargetHoleType(type: HoleType, connectingId: string) {
   if (connectingId === 'SCRW') return type === 'threaded'
   if (connectingId === 'SHFT') return type === 'clamp'

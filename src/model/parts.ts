@@ -134,6 +134,11 @@ export type PlacedPart = {
   rotation: [number, number, number]
   color: [number, number, number] | null
   shape?: PolycarbonateShape
+  groupId?: number
+}
+
+export function nextGroupId(parts: PlacedPart[]) {
+  return parts.reduce((max, part) => Math.max(max, part.groupId ?? 0), 0) + 1
 }
 
 export const ZERO_ROTATION: [number, number, number] = [0, 0, 0]

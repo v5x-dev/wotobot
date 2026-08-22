@@ -221,6 +221,17 @@ function App() {
                 Select All
                 <DropdownMenuShortcut>{shortcut('A')}</DropdownMenuShortcut>
               </DropdownMenuItem>
+              <DropdownMenuItem disabled={!editor.canGroup} onSelect={() => editor.groupSelected()}>
+                Group
+                <DropdownMenuShortcut>{shortcut('G')}</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!editor.canUngroup}
+                onSelect={() => editor.ungroupSelected()}
+              >
+                Ungroup
+                <DropdownMenuShortcut>{shiftShortcut('G')}</DropdownMenuShortcut>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={!editor.hasSelection}
@@ -289,6 +300,10 @@ function App() {
                 onFocus={() => setFocusToken((value) => value + 1)}
                 showHoles={editor.showHoles}
                 onToggleHoles={editor.toggleHoles}
+                canGroup={editor.canGroup}
+                onGroup={editor.groupSelected}
+                canUngroup={editor.canUngroup}
+                onUngroup={editor.ungroupSelected}
               />
               {editor.tool === 'color' ? (
                 <ColorSwatches
