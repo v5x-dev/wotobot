@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path("/home/pingu/Work/contrib/Protobot-Rebuilt")
 PREFABS = ROOT / "Assets/Resources/Part Prefabs"
-OUT = Path("/home/pingu/Work/r3f/protobot-web/src")
+OUT = Path("/home/pingu/Work/r3f/wotobot/src")
 
 PART_TYPE = "20517603e29e5ac47a06559006a99763"
 PART_DATA = "eef8f5de2cc508f409ba021e27e5a351"
