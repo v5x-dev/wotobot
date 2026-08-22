@@ -2,6 +2,23 @@ import type { PartDefinition } from './parts'
 
 export const PARTS: PartDefinition[] = [
   {
+    "id": "POLY",
+    "name": "Polycarbonate",
+    "group": "Structure",
+    "unityGroup": "Structure",
+    "connectingPart": false,
+    "generator": "polycarbonate",
+    "icon": "/part-icons/POLY.png",
+    "param1": {
+      "name": "Width", "defaultValue": "4", "custom": true, "unit": "in", "customDefault": "4", "min": 0.25, "max": 144, "options": []
+    },
+    "param2": {
+      "name": "Height", "defaultValue": "8", "custom": true, "unit": "in", "customDefault": "8", "min": 0.25, "max": 144, "options": []
+    },
+    "variants": [],
+    "mesh": null
+  },
+  {
     "id": "ANGL",
     "name": "Angle",
     "group": "Structure",

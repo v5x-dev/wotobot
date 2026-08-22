@@ -26,7 +26,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
-import { PARTS } from './partsCatalog'
+import { PARTS } from '@/model/partsCatalog'
 import {
   defaultParamValue,
   matchesSearch,
@@ -36,7 +36,7 @@ import {
   PART_GROUPS,
   type PartDefinition,
   type PartParam,
-} from './parts'
+} from '@/model/parts'
 
 type Props = {
   placing: boolean

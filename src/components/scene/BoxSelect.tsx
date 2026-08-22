@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useThree } from '@react-three/fiber'
 import { Vector3 } from 'three'
-import type { PlacedPart } from './parts'
+import type { PlacedPart } from '@/model/parts'
 
 const MIN_DRAG = 5
 

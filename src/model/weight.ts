@@ -29,6 +29,20 @@ export function partWeightGrams(part: PlacedPart) {
   const definition = findPart(part.key)
   if (!definition) return 0
 
+  if (definition.generator === 'polycarbonate') {
+    const width = Number(part.param1) || 4
+    const height = Number(part.param2) || 8
+    const thickness = part.shape?.thickness ?? 0.0625
+    let area = width * height
+    if (part.shape?.points && part.shape.points.length >= 3) {
+      area = Math.abs(part.shape.points.reduce((sum, [x, y], index, points) => {
+        const [nextX, nextY] = points[(index + 1) % points.length]
+        return sum + x * nextY - nextX * y
+      }, 0)) / 2
+    }
+    return area * thickness * 16.387064 * 1.2
+  }
+
   if (definition.generator === 'aluminum') {
     const table = ALUMINUM_GRAMS[definition.id]
     const perHole = table?.[part.param1] ?? table?.default ?? 0
@@ -72,6 +86,9 @@ export function partListLabel(part: PlacedPart) {
   }
   if (definition?.generator === 'shaft') {
     return `${part.param1} Shaft (${part.param2})`
+  }
+  if (definition?.generator === 'polycarbonate') {
+    return `Polycarbonate (${part.param1}x${part.param2}x${part.shape?.thickness ?? 0.0625} in)`
   }
   return [name, part.param1, part.param2].filter(Boolean).join(' ')
 }

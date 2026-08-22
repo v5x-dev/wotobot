@@ -23,12 +23,13 @@ import {
   type Object3D,
 } from 'three'
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib'
-import { GRID_SNAP, ROTATION_SNAP, snap } from './grid'
+import { GRID_SNAP, ROTATION_SNAP, snap } from '@/model/grid'
 
 const SELECTED_OUTLINE = '#3EA6FF'
 const CONNECTED_OUTLINE = '#7ec8ff'
 const OUTLINE_THICKNESS = 2.5
 const DRAG_THRESHOLD = 4
+const ROTATE_RING_RADIUS = 1.25
 
 const _plane = new Plane()
 const _hit = new Vector3()
@@ -85,7 +86,7 @@ function fullCircleGeometry(axis: 'X' | 'Y' | 'Z') {
   const vertices: number[] = []
   for (let i = 0; i <= 64; i++) {
     const angle = (i / 32) * Math.PI
-    vertices.push(0, Math.cos(angle), Math.sin(angle))
+    vertices.push(0, Math.cos(angle) * ROTATE_RING_RADIUS, Math.sin(angle) * ROTATE_RING_RADIUS)
   }
   geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3))
   if (axis === 'Y') geometry.rotateZ(-Math.PI / 2)
@@ -100,6 +101,16 @@ function closeRotateRings(gizmo: CombinedGizmo) {
     if (!line.isLine) continue
     line.geometry.dispose()
     line.geometry = fullCircleGeometry(child.name)
+  }
+  for (const child of gizmo.picker.rotate.children) {
+    if (child.name !== 'X' && child.name !== 'Y' && child.name !== 'Z') continue
+    const mesh = child as Mesh
+    if (!mesh.isMesh || mesh.userData.rotatePickerScaled) continue
+    mesh.userData.rotatePickerScaled = true
+    const scaled = mesh.geometry.clone()
+    scaled.scale(ROTATE_RING_RADIUS, ROTATE_RING_RADIUS, ROTATE_RING_RADIUS)
+    mesh.geometry.dispose()
+    mesh.geometry = scaled
   }
 }
 
@@ -226,10 +237,12 @@ function alignFlippedArrowHeads(root: Object3D) {
 
 function CombinedTransformGizmo({
   object,
+  gizmoPickRef,
   onMouseDown,
   onMouseUp,
 }: {
   object: RefObject<Object3D>
+  gizmoPickRef: { current: boolean }
   onMouseDown: () => void
   onMouseUp: () => void
 }) {
@@ -256,9 +269,10 @@ function CombinedTransformGizmo({
       if (!translateControls || !rotateControls) return null
       const translateHit = pickerHit(translateControls, 'translate', event, dom, camera, raycaster)
       const rotateHit = pickerHit(rotateControls, 'rotate', event, dom, camera, raycaster)
-      if (translateHit && (!rotateHit || translateHit.distance <= rotateHit.distance * 1.08)) {
-        return 'translate' as const
+      if (translateHit && rotateHit) {
+        return translateHit.distance < rotateHit.distance ? ('translate' as const) : ('rotate' as const)
       }
+      if (translateHit) return 'translate' as const
       if (rotateHit) return 'rotate' as const
       return null
     }
@@ -269,11 +283,18 @@ function CombinedTransformGizmo({
       const rotateControls = asControls(rotateRef.current)
       if (!translateControls || !rotateControls) return
       const pick = winner(event)
-      if (pick === 'translate') rotateControls.enabled = false
-      else if (pick === 'rotate') translateControls.enabled = false
+      gizmoPickRef.current = pick !== null
+      if (pick === 'translate') {
+        rotateControls.enabled = false
+        rotateControls.axis = null
+      } else if (pick === 'rotate') {
+        translateControls.enabled = false
+        translateControls.axis = null
+      }
     }
 
     function onPointerUp() {
+      gizmoPickRef.current = false
       const translateControls = asControls(translateRef.current)
       const rotateControls = asControls(rotateRef.current)
       if (translateControls) translateControls.enabled = true
@@ -295,12 +316,13 @@ function CombinedTransformGizmo({
     document.addEventListener('pointerup', onPointerUp)
     dom.addEventListener('pointermove', onPointerMove)
     return () => {
+      gizmoPickRef.current = false
       restoreRotate()
       dom.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('pointerup', onPointerUp)
       dom.removeEventListener('pointermove', onPointerMove)
     }
-  }, [camera, events, gl, raycaster])
+  }, [camera, events, gl, gizmoPickRef, raycaster])
 
   return (
     <>
@@ -375,7 +397,9 @@ export function SelectablePart({
   const groupRef = useRef<Group>(null)
   const outlineMaterialRef = useRef<ShaderMaterial | null>(null)
   const movingRef = useRef(false)
+  const dragSourceRef = useRef<'part' | 'gizmo' | null>(null)
   const dragStartedRef = useRef(false)
+  const gizmoPickRef = useRef(false)
   const grabOffset = useRef(new Vector3())
   const pointerDown = useRef({ x: 0, y: 0 })
   const orbitControls = useThree((state) => state.controls)
@@ -462,9 +486,10 @@ export function SelectablePart({
     onTransform(next.position, next.rotation)
   }
 
-  function finishPointerDrag() {
-    if (!movingRef.current) return
+  function finishPartDrag() {
+    if (dragSourceRef.current !== 'part') return
     if (dragStartedRef.current) commitTransform()
+    dragSourceRef.current = null
     movingRef.current = false
     dragStartedRef.current = false
     setOrbitEnabled(orbitControls, true)
@@ -478,11 +503,13 @@ export function SelectablePart({
         onPointerDown={(event) => {
           if (!interactive || event.button !== 0) return
           event.stopPropagation()
+          if (gizmoPickRef.current) return
           onSelect(event.ctrlKey || event.metaKey)
 
           const group = groupRef.current
           if (!group) return
 
+          dragSourceRef.current = 'part'
           movingRef.current = true
           dragStartedRef.current = false
           pointerDown.current = { x: event.clientX, y: event.clientY }
@@ -496,7 +523,7 @@ export function SelectablePart({
           onMoveStart?.()
         }}
         onPointerMove={(event) => {
-          if (!interactive || !movingRef.current) return
+          if (!interactive || dragSourceRef.current !== 'part') return
           event.stopPropagation()
 
           const group = groupRef.current
@@ -517,21 +544,25 @@ export function SelectablePart({
             snap(_hit.z - grabOffset.current.z),
           )
         }}
-        onPointerUp={finishPointerDrag}
-        onPointerCancel={finishPointerDrag}
+        onPointerUp={finishPartDrag}
+        onPointerCancel={finishPartDrag}
       >
         {children}
       </group>
       {showGizmo && interactive && (
         <CombinedTransformGizmo
           object={groupRef as RefObject<Object3D>}
+          gizmoPickRef={gizmoPickRef}
           onMouseDown={() => {
+            dragSourceRef.current = 'gizmo'
             movingRef.current = true
             setOrbitEnabled(orbitControls, false)
             onMoveStart?.()
           }}
           onMouseUp={() => {
+            if (dragSourceRef.current !== 'gizmo') return
             commitTransform()
+            dragSourceRef.current = null
             movingRef.current = false
             setOrbitEnabled(orbitControls, true)
             onMoveEnd?.()

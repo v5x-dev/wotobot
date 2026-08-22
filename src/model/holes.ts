@@ -1,6 +1,15 @@
 import { holeX } from './channelGeometry'
 import { HOLES_CATALOG } from './holesCatalog'
-import { findPart, type PlacedPart } from './parts'
+import {
+  findPart,
+  pointInPolygon,
+  polycarbonateOutline,
+  polygonCenter,
+  type PlacedPart,
+} from './parts'
+
+export const SCREW_HOLE_DIAMETER = 0.182
+export const SCREW_HOLE_SPACING = 0.5
 
 export type HoleType = 'normal' | 'threaded' | 'clamp'
 export type HoleShape = 'circle' | 'square'
@@ -78,7 +87,29 @@ function variantEntry(entry: CatalogEntry, param1: string, param2: string) {
   )
 }
 
+function polycarbonateHoles(part: PlacedPart): HoleTemplate[] {
+  const points = polycarbonateOutline(part)
+  const thickness = part.shape?.thickness ?? 0.0625
+  const [cx, cy] = polygonCenter(points)
+  const holes: HoleTemplate[] = []
+  for (const [x, y] of part.shape?.holes ?? []) {
+    if (!pointInPolygon([x, y], points)) continue
+    holes.push({
+      position: [x - cx, y - cy, 0],
+      rotation: [0, 0, 0, 1],
+      size: [SCREW_HOLE_DIAMETER, SCREW_HOLE_DIAMETER],
+      depth: thickness,
+      type: 'normal',
+      twoSided: true,
+      shape: 'circle',
+    })
+  }
+  return holes
+}
+
 export function holesForPart(part: PlacedPart): HoleTemplate[] {
+  if (findPart(part.key)?.generator === 'polycarbonate') return polycarbonateHoles(part)
+
   const entry = catalogEntry(part)
   if (!entry) return []
 
@@ -127,6 +158,9 @@ export function holesForPart(part: PlacedPart): HoleTemplate[] {
 }
 
 export function primaryHoleDepthFor(part: PlacedPart) {
+  if (findPart(part.key)?.generator === 'polycarbonate') {
+    return part.shape?.thickness ?? 0.0625
+  }
   const entry = catalogEntry(part)
   if (!entry) return 0.06
   const variant = variantEntry(entry, part.param1, part.param2)

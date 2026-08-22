@@ -1,18 +1,19 @@
-import { OrbitControls } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
 import { CircleHelp, File, Maximize2, Minimize2, Pencil } from 'lucide-react'
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
-import { AddSidebar } from './AddSidebar'
-import { BoxSelect } from './BoxSelect'
-import { FpsCounter } from './FpsCounter'
-import { InfiniteGrid } from './InfiniteGrid'
-import { PlacementPreview } from './PlacementPreview'
-import { PropertiesPanel } from './PropertiesPanel'
-import { SceneParts } from './SceneParts'
-import { ColorSwatches, ToolsSidebar } from './ToolsSidebar'
-import { useRobotEditor } from './useRobotEditor'
-import { WeightBadge } from './WeightBadge'
+import { AddSidebar } from '@/components/editor/AddSidebar'
+import { PropertiesPanel } from '@/components/editor/PropertiesPanel'
+import { ColorSwatches, ToolsSidebar } from '@/components/editor/ToolsSidebar'
+import { PolycarbonateBadge } from '@/components/editor/PolycarbonateBadge'
+import { WeightBadge } from '@/components/editor/WeightBadge'
+import { BoxSelect } from '@/components/scene/BoxSelect'
+import { FpsCounter } from '@/components/scene/FpsCounter'
+import { InfiniteGrid } from '@/components/scene/InfiniteGrid'
+import { OrbitControls } from '@/components/scene/OrbitControls'
+import { PlacementPreview } from '@/components/scene/PlacementPreview'
+import { SceneParts } from '@/components/scene/SceneParts'
+import { useRobotEditor } from '@/editor/useRobotEditor'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -300,12 +301,20 @@ function App() {
               ) : null}
               <PropertiesPanel
                 part={editor.primary}
+                parts={editor.parts}
                 onChange={(position, rotation) => {
                   if (editor.primaryId == null) return
                   editor.transformPart(editor.primaryId, position, rotation)
                 }}
+                onShapeChange={(shape, width, height) => {
+                  if (editor.primaryId == null) return
+                  editor.updatePartShape(editor.primaryId, shape, width, height)
+                }}
               />
-              <WeightBadge parts={editor.parts} />
+              <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+                <WeightBadge parts={editor.parts} />
+                <PolycarbonateBadge parts={editor.parts} />
+              </div>
               <div
                 ref={fpsLabel}
                 className="absolute top-2 right-2 select-none font-mono text-xs tabular-nums text-white/70"

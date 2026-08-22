@@ -1,12 +1,12 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
 import { BufferGeometry, DoubleSide, Group, Plane, Quaternion, Vector3, type Object3D } from 'three'
-import { snapVec3 } from './grid'
-import { eulerToQuat, quatToEuler } from './math'
-import { holeFaceFromHit, snapPlacement, type HoleFace } from './placementSnap'
+import { snapVec3 } from '@/model/grid'
+import { eulerToQuat, quatToEuler } from '@/model/math'
+import { holeFaceFromHit, snapPlacement, type HoleFace } from '@/model/placementSnap'
 import { PlacedPartMesh } from './SceneParts'
-import type { PlacedPart } from './parts'
-import type { HoleTemplate } from './holes'
+import type { PlacedPart } from '@/model/parts'
+import type { HoleTemplate } from '@/model/holes'
 
 const DRAG_THRESHOLD = 4
 const ground = new Plane(new Vector3(0, 1, 0), 0)
@@ -25,7 +25,7 @@ function isSceneTarget(target: EventTarget | null) {
 }
 
 function toPending(part: PlacedPart) {
-  return { key: part.key, param1: part.param1, param2: part.param2 }
+  return { key: part.key, param1: part.param1, param2: part.param2, shape: part.shape }
 }
 
 function readHole(object: Object3D) {
@@ -56,7 +56,7 @@ export function PlacementPreview({
   onPlace: (
     position: [number, number, number],
     rotation: [number, number, number],
-    pending: Pick<PlacedPart, 'key' | 'param1' | 'param2'>,
+    pending: Pick<PlacedPart, 'key' | 'param1' | 'param2' | 'shape'>,
   ) => void
   onRotation: (rotation: [number, number, number]) => void
 }) {

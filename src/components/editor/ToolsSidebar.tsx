@@ -1,7 +1,7 @@
 import { CircleDotDashed, Copy, Move3d, MousePointer2, Palette, Scan, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { COLOR_PRESETS, hexToRgb, rgbToHex } from './colors'
-import type { EditorTool } from './useRobotEditor'
+import { COLOR_PRESETS, hexToRgb, rgbToHex } from '@/model/colors'
+import type { EditorTool } from '@/editor/useRobotEditor'
 
 const TOOLS: { id: EditorTool; label: string; shortcut: string; icon: typeof MousePointer2 }[] = [
   { id: 'transform', label: 'Transform', shortcut: '1', icon: MousePointer2 },

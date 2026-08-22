@@ -36,7 +36,80 @@ export type PartMesh = {
   splitFbx?: string | null
 }
 
-export type PartGenerator = 'aluminum' | 'child' | 'single' | 'plate' | 'shaft'
+export type PartGenerator = 'aluminum' | 'child' | 'single' | 'plate' | 'shaft' | 'polycarbonate'
+
+export type PolycarbonateShape = {
+  kind: 'polygon'
+  thickness: number
+  points: [number, number][]
+  holes: [number, number][]
+}
+
+export function rectanglePolygon(width: number, height: number): [number, number][] {
+  return [[-width / 2, -height / 2], [width / 2, -height / 2], [width / 2, height / 2], [-width / 2, height / 2]]
+}
+
+export function polygonAabb(points: [number, number][]) {
+  if (points.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const [x, y] of points) {
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+  }
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: Math.max(0, maxX - minX),
+    height: Math.max(0, maxY - minY),
+  }
+}
+
+export function polygonSize(points: [number, number][]) {
+  const { width, height } = polygonAabb(points)
+  return { width, height }
+}
+
+export function polygonCenter(points: [number, number][]): [number, number] {
+  const { minX, maxX, minY, maxY } = polygonAabb(points)
+  return [(minX + maxX) / 2, (minY + maxY) / 2]
+}
+
+export function pointInPolygon(point: [number, number], polygon: [number, number][]) {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i]
+    const [xj, yj] = polygon[j]
+    if ((yi > point[1]) !== (yj > point[1]) && point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+export function clonePolycarbonateShape(shape: PolycarbonateShape): PolycarbonateShape {
+  return {
+    kind: 'polygon',
+    thickness: shape.thickness,
+    points: shape.points.map(([x, y]) => [x, y]),
+    holes: (shape.holes ?? []).map(([x, y]) => [x, y]),
+  }
+}
+
+export function defaultPolycarbonateShape(width: number, height: number, thickness = 0.0625): PolycarbonateShape {
+  return {
+    kind: 'polygon',
+    thickness,
+    points: rectanglePolygon(width, height),
+    holes: [],
+  }
+}
 
 export type PartDefinition = {
   id: string
@@ -60,6 +133,7 @@ export type PlacedPart = {
   position: [number, number, number]
   rotation: [number, number, number]
   color: [number, number, number] | null
+  shape?: PolycarbonateShape
 }
 
 export const ZERO_ROTATION: [number, number, number] = [0, 0, 0]
@@ -70,6 +144,11 @@ export function partKey(part: PartDefinition) {
 
 export function findPart(key: string) {
   return PARTS.find((part) => partKey(part) === key)
+}
+
+export function polycarbonateOutline(part: Pick<PlacedPart, 'param1' | 'param2' | 'shape'>): [number, number][] {
+  if (part.shape?.points && part.shape.points.length >= 3) return part.shape.points
+  return rectanglePolygon(Number(part.param1) || 4, Number(part.param2) || 8)
 }
 
 export function defaultParamValue(param: PartParam | null) {

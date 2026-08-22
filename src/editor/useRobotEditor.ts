@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Quaternion, Vector3 } from 'three'
-import { connectionGraph, unionConnected } from './connections'
+import { connectionGraph, unionConnected } from '@/model/connections'
 import {
   cloneParts,
   DEFAULT_CAMERA,
@@ -14,16 +14,26 @@ import {
   withWbbExtension,
   type CameraState,
   type PlacedPart,
-} from './document'
+} from '@/persistence/document'
 import {
   exportTextFile,
   isAbortError,
   openTextFile,
   saveTextFile,
   type FileSystemFileHandle,
-} from './fileIO'
-import { eulerToQuat, quatToEuler } from './math'
-import { findPart, paramError, partKey, ZERO_ROTATION, type PartDefinition } from './parts'
+} from '@/persistence/fileIO'
+import { eulerToQuat, quatToEuler } from '@/model/math'
+import {
+  clonePolycarbonateShape,
+  defaultPolycarbonateShape,
+  findPart,
+  paramError,
+  partKey,
+  rectanglePolygon,
+  ZERO_ROTATION,
+  type PartDefinition,
+  type PolycarbonateShape,
+} from '@/model/parts'
 
 const MAX_HISTORY = 100
 
@@ -43,6 +53,7 @@ export type PendingPart = {
   param1: string
   param2: string
   rotation: [number, number, number]
+  shape?: PolycarbonateShape
 }
 
 function sameVec3(a: [number, number, number], b: [number, number, number]) {
@@ -203,11 +214,24 @@ export function useRobotEditor() {
       param1,
       param2,
       rotation: [...ZERO_ROTATION],
+      shape: part.generator === 'polycarbonate'
+        ? defaultPolycarbonateShape(Number(param1) || 4, Number(param2) || 8)
+        : undefined,
     })
   }, [])
 
   const updatePlacing = useCallback((param1: string, param2: string) => {
-    setPlacingPart((current) => (current ? { ...current, param1, param2 } : current))
+    setPlacingPart((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        param1,
+        param2,
+        shape: current.shape
+          ? { ...current.shape, points: rectanglePolygon(Number(param1) || 4, Number(param2) || 8), holes: [] }
+          : current.shape,
+      }
+    })
   }, [])
 
   const updatePlacingRotation = useCallback((rotation: [number, number, number]) => {
@@ -276,7 +300,7 @@ export function useRobotEditor() {
     (
       position: [number, number, number],
       rotation: [number, number, number],
-      pending?: Pick<PlacedPart, 'key' | 'param1' | 'param2'> | null,
+      pending?: Pick<PlacedPart, 'key' | 'param1' | 'param2' | 'shape'> | null,
     ) => {
       const toPlace = pending ?? placingPartRef.current
       if (!toPlace) return
@@ -302,6 +326,11 @@ export function useRobotEditor() {
 
       pushHistory()
       const id = nextIdRef.current
+      const shape = toPlace.shape ?? (
+        definition?.generator === 'polycarbonate'
+          ? defaultPolycarbonateShape(Number(toPlace.param1) || 4, Number(toPlace.param2) || 8)
+          : undefined
+      )
       setParts((current) => [
         ...current,
         {
@@ -312,6 +341,7 @@ export function useRobotEditor() {
           position,
           rotation: [...rotation],
           color: null,
+          shape,
         },
       ])
       setNextId(id + 1)
@@ -360,6 +390,7 @@ export function useRobotEditor() {
           position: [...part.position] as [number, number, number],
           rotation: [...part.rotation] as [number, number, number],
           color: part.color ? [...part.color] as [number, number, number] : null,
+          shape: part.shape ? clonePolycarbonateShape(part.shape) : undefined,
         })),
     )
   }, [])
@@ -441,6 +472,7 @@ export function useRobotEditor() {
       param1: selected.param1,
       param2: selected.param2,
       rotation: [...selected.rotation],
+      shape: selected.shape ? clonePolycarbonateShape(selected.shape) : undefined,
     })
   }, [])
 
@@ -455,6 +487,15 @@ export function useRobotEditor() {
     },
     [pushHistory],
   )
+
+  const updatePartShape = useCallback((id: number, shape: PolycarbonateShape, param1: string, param2: string) => {
+    const current = partsRef.current.find((part) => part.instanceId === id)
+    if (!current) return
+    pushHistory()
+    setParts((parts) => parts.map((part) => part.instanceId === id
+      ? { ...part, param1, param2, shape: clonePolycarbonateShape(shape) }
+      : part))
+  }, [pushHistory])
 
   const undo = useCallback(() => {
     const prev = undoStack.at(-1)
@@ -549,7 +590,8 @@ export function useRobotEditor() {
     }, 0)
   }, [])
 
-  const onPointerMissed = useCallback(() => {
+  const onPointerMissed = useCallback((event: { button: number }) => {
+    if (event.button !== 0) return
     if (placingPartRef.current) return
     if (!ignorePointerMiss.current) clearSelection()
   }, [clearSelection])
@@ -601,6 +643,7 @@ export function useRobotEditor() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return
       const cmd = commandsRef.current
       const mod = event.metaKey || event.ctrlKey
       const key = event.key.toLowerCase()
@@ -777,6 +820,7 @@ export function useRobotEditor() {
     startMoveSelection,
     placeAt,
     transformPart,
+    updatePartShape,
     selectPart,
     onMoveStart,
     onMoveEnd,

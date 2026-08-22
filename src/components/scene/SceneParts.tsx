@@ -2,28 +2,33 @@ import { useFBX } from '@react-three/drei'
 import { Suspense, useMemo } from 'react'
 import {
   DoubleSide,
+  ExtrudeGeometry,
   Mesh,
   MeshStandardMaterial,
+  Path,
+  Shape,
   type Material,
   type Object3D,
 } from 'three'
 import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
-import { holesForPart } from './holes'
+import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
   collectChannelPieces,
   getCatalogGeometry,
   holeX,
   indexCatalogMeshes,
   pieceForHole,
-} from './channelGeometry'
+} from '@/model/channelGeometry'
 import {
   channelProfileFromSize,
   findPart,
   modelUrl,
+  pointInPolygon,
+  polycarbonateOutline,
   variantFor,
   type PlacedPart,
-} from './parts'
+} from '@/model/parts'
 
 const CATALOG_FBX = '/models/c-channels.fbx'
 const SPLIT_FBX = '/models/c-channels-split.fbx'
@@ -37,16 +42,29 @@ const aluminum = new MeshStandardMaterial({
 })
 
 const preview = new MeshStandardMaterial({
-  color: '#484848',
-  metalness: 0.39,
-  roughness: 0.73,
+  color: '#F2F2F2',
+  metalness: 0.754,
+  roughness: 0.925,
+  transparent: true,
+  opacity: 0.25,
   side: DoubleSide,
+  depthWrite: false,
 })
 
 const missing = new MeshStandardMaterial({
   color: '#c45c26',
   metalness: 0.1,
   roughness: 0.8,
+})
+
+const polycarbonate = new MeshStandardMaterial({
+  color: '#b9e4ef',
+  metalness: 0,
+  roughness: 0.18,
+  transparent: true,
+  opacity: 0.48,
+  side: DoubleSide,
+  depthWrite: false,
 })
 
 function noopRaycast() {}
@@ -89,11 +107,19 @@ function compactMeshGroups(mesh: Mesh) {
   geometry.userData.groupsMerged = true
 }
 
-type MeshFinish = 'aluminum' | 'model' | 'preview'
+type MeshFinish = 'aluminum' | 'model' | 'aluminum-preview' | 'model-preview'
 
 function surfaceMaterial(finish: MeshFinish) {
-  if (finish === 'preview') return preview
+  if (finish === 'aluminum-preview') return preview
   return aluminum
+}
+
+function makePreviewMaterial(material: Material) {
+  const previewMaterial = toPartMaterial(material)
+  previewMaterial.transparent = true
+  previewMaterial.opacity = 0.25
+  previewMaterial.depthWrite = false
+  return previewMaterial
 }
 
 function prepareFbxClone(
@@ -117,13 +143,13 @@ function prepareFbxClone(
 
     compactMeshGroups(mesh)
     mesh.material =
-      finish === 'model'
+      finish === 'model' || finish === 'model-preview'
         ? Array.isArray(mesh.material)
-          ? mesh.material.map(toPartMaterial)
-          : toPartMaterial(mesh.material)
+          ? mesh.material.map(finish === 'model-preview' ? makePreviewMaterial : toPartMaterial)
+          : (finish === 'model-preview' ? makePreviewMaterial : toPartMaterial)(mesh.material)
         : surfaceMaterial(finish)
-    if (finish === 'preview') mesh.raycast = noopRaycast
-    if (color && finish !== 'preview') {
+    if (finish.endsWith('-preview')) mesh.raycast = noopRaycast
+    if (color) {
       const apply = (material: Material) => {
         if (material instanceof MeshStandardMaterial) material.color.setRGB(color[0], color[1], color[2])
       }
@@ -269,6 +295,45 @@ function MissingPart() {
   )
 }
 
+function PolycarbonatePart({ part, isPreview }: { part: PlacedPart; isPreview: boolean }) {
+  const spec = part.shape
+  const param1 = part.param1
+  const param2 = part.param2
+  const geometry = useMemo(() => {
+    const points = polycarbonateOutline({ param1, param2, shape: spec })
+    const outline = new Shape()
+    outline.moveTo(points[0][0], points[0][1])
+    points.slice(1).forEach(([x, y]) => outline.lineTo(x, y))
+    outline.closePath()
+    const radius = SCREW_HOLE_DIAMETER / 2
+    let area = 0
+    for (let i = 0; i < points.length; i += 1) {
+      const [x, y] = points[i]
+      const [nx, ny] = points[(i + 1) % points.length]
+      area += x * ny - nx * y
+    }
+    const holeClockwise = area > 0
+    for (const [x, y] of spec?.holes ?? []) {
+      if (!pointInPolygon([x, y], points)) continue
+      const hole = new Path()
+      hole.absarc(x, y, radius, 0, Math.PI * 2, holeClockwise)
+      outline.holes.push(hole)
+    }
+    const result = new ExtrudeGeometry(outline, {
+      depth: spec?.thickness ?? 0.0625,
+      bevelEnabled: false,
+      curveSegments: 48,
+    })
+    result.center()
+    return result
+  }, [param1, param2, spec])
+  const material = useMemo(
+    () => isPreview ? makePreviewMaterial(polycarbonate) : polycarbonate,
+    [isPreview],
+  )
+  return <mesh geometry={geometry} material={material} {...(isPreview ? { raycast: noopRaycast } : {})} />
+}
+
 function HoleColliders({
   part,
   show,
@@ -278,7 +343,7 @@ function HoleColliders({
 }) {
   const holes = useMemo(
     () => holesForPart(part),
-    [part.key, part.param1, part.param2],
+    [part.key, part.param1, part.param2, part.shape],
   )
 
   return (
@@ -306,9 +371,8 @@ function HoleColliders({
 }
 
 function aluminumMaterial(color: [number, number, number] | null, isPreview: boolean) {
-  if (isPreview) return preview
-  if (!color) return aluminum
-  const material = aluminum.clone()
+  if (!color) return isPreview ? preview : aluminum
+  const material = (isPreview ? preview : aluminum).clone()
   material.color.setRGB(color[0], color[1], color[2])
   return material
 }
@@ -326,7 +390,7 @@ export function PlacedPartMesh({
 }) {
   const definition = findPart(part.key)
   const material = aluminumMaterial(part.color, isPreview)
-  const finish: MeshFinish = isPreview ? 'preview' : 'aluminum'
+  const finish: MeshFinish = isPreview ? 'aluminum-preview' : 'aluminum'
   const holes = !isPreview && (showHoles || detectHoles)
     ? <HoleColliders part={part} show={showHoles} />
     : null
@@ -335,6 +399,15 @@ export function PlacedPartMesh({
     return (
       <>
         <MissingPart />
+        {holes}
+      </>
+    )
+  }
+
+  if (definition.generator === 'polycarbonate') {
+    return (
+      <>
+        <PolycarbonatePart part={part} isPreview={isPreview} />
         {holes}
       </>
     )
@@ -419,7 +492,7 @@ export function PlacedPartMesh({
         url={modelUrl(fbx)}
         meshName={meshName}
         rotation={MODEL_ROTATION}
-        finish={isPreview ? 'preview' : 'model'}
+        finish={isPreview ? 'model-preview' : 'model'}
         color={part.color}
       />
       {holes}

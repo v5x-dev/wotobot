@@ -1,9 +1,9 @@
-import { ZERO_ROTATION, type PlacedPart } from './parts'
-import { partsListText as formatPartsList } from './weight'
+import { ZERO_ROTATION, clonePolycarbonateShape, polygonSize, type PlacedPart } from '@/model/parts'
+import { partsListText as formatPartsList } from '@/model/weight'
 
 export type { PlacedPart }
 
-export const DOCUMENT_VERSION = 2
+export const DOCUMENT_VERSION = 3
 export const UNTITLED_NAME = 'untitled.wbb'
 export const PASTE_OFFSET = 1
 
@@ -35,6 +35,7 @@ export function cloneParts(parts: PlacedPart[]): PlacedPart[] {
     position: cloneVec3(part.position),
     rotation: cloneVec3(part.rotation ?? ZERO_ROTATION),
     color: part.color ? cloneVec3(part.color) : null,
+    shape: part.shape ? clonePolycarbonateShape(part.shape) : undefined,
   }))
 }
 
@@ -67,6 +68,63 @@ function asColor(value: unknown): [number, number, number] | null {
   return asVec3(value)
 }
 
+function ellipsePolygon(width: number, height: number, segments = 48): [number, number][] {
+  return Array.from({ length: segments }, (_, index) => {
+    const angle = (index / segments) * Math.PI * 2
+    return [Math.cos(angle) * width / 2, Math.sin(angle) * height / 2]
+  })
+}
+
+function asShape(value: unknown): PlacedPart['shape'] {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const kind = String(record.kind)
+  if (
+    !['rectangle', 'ellipse', 'polygon'].includes(kind) ||
+    typeof record.thickness !== 'number' ||
+    !Number.isFinite(record.thickness) ||
+    record.thickness <= 0 ||
+    !Array.isArray(record.points)
+  ) return undefined
+  const points = record.points.map(asPoint)
+  if (points.some((point) => !point) || points.length < 3) return undefined
+  const outline = points as [number, number][]
+  const holes = asHoles(record.holes)
+  if (kind === 'ellipse') {
+    const { width, height } = polygonSize(outline)
+    return {
+      kind: 'polygon',
+      thickness: record.thickness,
+      points: ellipsePolygon(width || 4, height || 8),
+      holes,
+    }
+  }
+  return {
+    kind: 'polygon',
+    thickness: record.thickness,
+    points: outline,
+    holes,
+  }
+}
+
+function asPoint(value: unknown): [number, number] | null {
+  if (!Array.isArray(value) || value.length !== 2) return null
+  const [x, y] = value
+  return typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y)
+    ? [x, y]
+    : null
+}
+
+function asHoles(value: unknown): [number, number][] {
+  if (!Array.isArray(value)) return []
+  const holes: [number, number][] = []
+  for (const item of value) {
+    const point = asPoint(item)
+    if (point) holes.push(point)
+  }
+  return holes
+}
+
 function asPart(value: unknown): PlacedPart | null {
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
@@ -92,6 +150,7 @@ function asPart(value: unknown): PlacedPart | null {
     position,
     rotation,
     color: asColor(record.color),
+    shape: asShape(record.shape),
   }
 }
 
