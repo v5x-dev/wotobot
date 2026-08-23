@@ -33,10 +33,6 @@ import {
 
 const CATALOG_FBX = '/models/c-channels.fbx'
 const SPLIT_FBX = '/models/c-channels-split.fbx'
-const SPROCKET_FBXS = [
-  'Gears and Sprockets/Sprockets.fbx',
-  'Gears and Sprockets/HS Sprockets.fbx',
-] as const
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
 
 const aluminum = new MeshStandardMaterial({
@@ -300,13 +296,52 @@ function MissingPart() {
   )
 }
 
-function SprocketPreview({ part }: { part: PlacedPart }) {
-  const radius = sprocketPitchRadius(part) + (part.param1 === 'High Strength' ? 0.08 : 0.035)
+function SprocketPart({ part, isPreview }: { part: PlacedPart; isPreview: boolean }) {
+  const teeth = Math.max(3, Number(part.param2.match(/\d+/)?.[0]) || 10)
+  const highStrength = part.param1 === 'High Strength'
+  const pitchRadius = sprocketPitchRadius(part)
+  const outerRadius = pitchRadius + (highStrength ? 0.102 : 0.025)
+  const rootRadius = Math.max(0.1, pitchRadius - (highStrength ? 0.09 : 0.035))
+  const axleSize = highStrength ? 0.25 : 0.13
   const thickness = part.param1 === 'High Strength' ? 0.525 : 0.492
+  const geometry = useMemo(() => {
+    const outline = new Shape()
+    for (let index = 0; index < teeth * 4; index += 1) {
+      const angle = (index / (teeth * 4)) * Math.PI * 2
+      const toothPhase = index % 4
+      const radius = toothPhase === 1 || toothPhase === 2 ? outerRadius : rootRadius
+      const x = Math.cos(angle) * radius
+      const y = Math.sin(angle) * radius
+      if (index === 0) outline.moveTo(x, y)
+      else outline.lineTo(x, y)
+    }
+    outline.closePath()
+
+    const halfAxle = axleSize / 2
+    const axleHole = new Path()
+    axleHole.moveTo(-halfAxle, -halfAxle)
+    axleHole.lineTo(-halfAxle, halfAxle)
+    axleHole.lineTo(halfAxle, halfAxle)
+    axleHole.lineTo(halfAxle, -halfAxle)
+    axleHole.closePath()
+    outline.holes.push(axleHole)
+
+    const result = new ExtrudeGeometry(outline, {
+      depth: thickness,
+      bevelEnabled: false,
+      curveSegments: 4,
+    })
+    result.center()
+    return result
+  }, [axleSize, outerRadius, rootRadius, teeth, thickness])
+  const material = aluminumMaterial(part.color, isPreview)
+
   return (
-    <mesh material={preview} rotation-x={Math.PI / 2} raycast={noopRaycast}>
-      <cylinderGeometry args={[radius, radius, thickness, 32]} />
-    </mesh>
+    <mesh
+      geometry={geometry}
+      material={material}
+      {...(isPreview ? { raycast: noopRaycast } : {})}
+    />
   )
 }
 
@@ -428,8 +463,13 @@ export function PlacedPartMesh({
     )
   }
 
-  if (definition.id === 'SPKT' && isPreview) {
-    return <SprocketPreview part={part} />
+  if (definition.id === 'SPKT') {
+    return (
+      <>
+        <SprocketPart part={part} isPreview={isPreview} />
+        {holes}
+      </>
+    )
   }
 
   if (definition.id === 'CCHL' && definition.generator === 'aluminum') {
@@ -582,4 +622,3 @@ export function SceneParts({
 
 useFBX.preload(CATALOG_FBX)
 useFBX.preload(SPLIT_FBX)
-SPROCKET_FBXS.forEach((fbx) => useFBX.preload(modelUrl(fbx)))
