@@ -343,14 +343,13 @@ function App() {
             </div>
             <Canvas
               data-slot="scene"
-              className={`h-full w-full${editor.placingPart ? ' cursor-crosshair' : ''}`}
+              className={`h-full w-full bg-background${editor.placingPart ? ' cursor-crosshair' : ''}`}
               camera={{ position: CAMERA_POSITION, fov: 50, near: 0.3, far: 2000 }}
               frameloop="always"
-              gl={{ stencil: true }}
+              gl={{ alpha: true, stencil: true }}
               onPointerMissed={editor.onPointerMissed}
               onContextMenu={(event) => event.preventDefault()}
             >
-              <color attach="background" args={['#181818']} />
               <ambientLight intensity={0.6} />
               <directionalLight position={[8, 12, 6]} intensity={0.8} />
               <CameraProjection ortho={editor.ortho} />

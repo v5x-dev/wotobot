@@ -20,6 +20,7 @@ import {
   indexCatalogMeshes,
   pieceForHole,
 } from '@/model/channelGeometry'
+import { sprocketPitchRadius } from '@/model/chains'
 import {
   channelProfileFromSize,
   findPart,
@@ -32,6 +33,10 @@ import {
 
 const CATALOG_FBX = '/models/c-channels.fbx'
 const SPLIT_FBX = '/models/c-channels-split.fbx'
+const SPROCKET_FBXS = [
+  'Gears and Sprockets/Sprockets.fbx',
+  'Gears and Sprockets/HS Sprockets.fbx',
+] as const
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
 
 const aluminum = new MeshStandardMaterial({
@@ -295,6 +300,16 @@ function MissingPart() {
   )
 }
 
+function SprocketPreview({ part }: { part: PlacedPart }) {
+  const radius = sprocketPitchRadius(part) + (part.param1 === 'High Strength' ? 0.08 : 0.035)
+  const thickness = part.param1 === 'High Strength' ? 0.525 : 0.492
+  return (
+    <mesh material={preview} rotation-x={Math.PI / 2} raycast={noopRaycast}>
+      <cylinderGeometry args={[radius, radius, thickness, 32]} />
+    </mesh>
+  )
+}
+
 function PolycarbonatePart({ part, isPreview }: { part: PlacedPart; isPreview: boolean }) {
   const spec = part.shape
   const param1 = part.param1
@@ -411,6 +426,10 @@ export function PlacedPartMesh({
         {holes}
       </>
     )
+  }
+
+  if (definition.id === 'SPKT' && isPreview) {
+    return <SprocketPreview part={part} />
   }
 
   if (definition.id === 'CCHL' && definition.generator === 'aluminum') {
@@ -563,3 +582,4 @@ export function SceneParts({
 
 useFBX.preload(CATALOG_FBX)
 useFBX.preload(SPLIT_FBX)
+SPROCKET_FBXS.forEach((fbx) => useFBX.preload(modelUrl(fbx)))
