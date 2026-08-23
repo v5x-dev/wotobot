@@ -25,6 +25,18 @@ const rollerMaterial = new MeshStandardMaterial({
   roughness: 0.36,
 })
 
+const highStrengthPlateMaterial = new MeshStandardMaterial({
+  color: '#18191b',
+  metalness: 0.05,
+  roughness: 0.76,
+})
+
+const highStrengthPinMaterial = new MeshStandardMaterial({
+  color: '#34363a',
+  metalness: 0.22,
+  roughness: 0.65,
+})
+
 const _axis = new Vector3()
 const _current = new Vector3()
 const _next = new Vector3()
@@ -49,10 +61,11 @@ function makeChainMatrices(a: PlacedPart, b: PlacedPart) {
   const plateMatrices: Matrix4[] = []
   const linkScale = geometry.pitch / 0.25
   const widthScale = Math.sqrt(linkScale)
-  const plateOffset = 0.0675 * widthScale
-  const plateWidth = 0.105 * linkScale
-  const plateThickness = 0.035 * widthScale
-  const endGap = 0.065 * linkScale
+  const highStrength = geometry.kind === 'high-strength'
+  const plateOffset = (highStrength ? 0.105 : 0.0675) * widthScale
+  const plateWidth = (highStrength ? 0.15 : 0.105) * linkScale
+  const plateThickness = (highStrength ? 0.055 : 0.035) * widthScale
+  const endGap = (highStrength ? 0.09 : 0.065) * linkScale
 
   for (let index = 0; index < points.length; index += 1) {
     _current.set(...points[index])
@@ -83,7 +96,8 @@ function makeChainMatrices(a: PlacedPart, b: PlacedPart) {
     rollerMatrices,
     plateMatrices,
     rollerRadius: 0.055 * linkScale,
-    rollerLength: 0.17 * widthScale,
+    rollerLength: (highStrength ? 0.25 : 0.17) * widthScale,
+    highStrength,
   }
 }
 
@@ -113,7 +127,7 @@ function ChainMesh({ a, b }: { a: PlacedPart; b: PlacedPart }) {
       <instancedMesh
         ref={rollersRef}
         args={[undefined, undefined, matrices.rollerMatrices.length]}
-        material={rollerMaterial}
+        material={matrices.highStrength ? highStrengthPinMaterial : rollerMaterial}
         frustumCulled={false}
         raycast={() => {}}
       >
@@ -124,7 +138,7 @@ function ChainMesh({ a, b }: { a: PlacedPart; b: PlacedPart }) {
       <instancedMesh
         ref={platesRef}
         args={[undefined, undefined, matrices.plateMatrices.length]}
-        material={plateMaterial}
+        material={matrices.highStrength ? highStrengthPlateMaterial : plateMaterial}
         frustumCulled={false}
         raycast={() => {}}
       >

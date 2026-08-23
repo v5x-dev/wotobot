@@ -12,7 +12,10 @@ export type ChainGeometry = {
   axis: [number, number, number]
   points: [number, number, number][]
   pitch: number
+  kind: ChainKind
 }
+
+export type ChainKind = 'standard' | 'high-strength'
 
 export const STANDARD_CHAIN_PITCH = 0.148
 export const HIGH_STRENGTH_CHAIN_PITCH = 0.385
@@ -44,9 +47,13 @@ export function sprocketPitchRadius(part: PlacedPart) {
 }
 
 export function sprocketChainPitch(part: PlacedPart) {
-  return part.param1 === 'High Strength'
+  return sprocketChainKind(part) === 'high-strength'
     ? HIGH_STRENGTH_CHAIN_PITCH
     : STANDARD_CHAIN_PITCH
+}
+
+export function sprocketChainKind(part: PlacedPart): ChainKind {
+  return part.param1 === 'High Strength' ? 'high-strength' : 'standard'
 }
 
 export function nextChainId(chains: SprocketChain[]) {
@@ -80,11 +87,12 @@ export function chainSelection(
   }
   const error = chainFitError(a, b)
   if (error) return { mode: null, reason: error } as const
-  return { mode: 'add', reason: 'Add chain between the selected sprockets.' } as const
+  const label = sprocketChainKind(a) === 'high-strength' ? 'high-strength' : 'standard'
+  return { mode: 'add', reason: `Add ${label} chain between the selected sprockets.` } as const
 }
 
 export function chainFitError(a: PlacedPart, b: PlacedPart) {
-  if (a.param1 !== b.param1) {
+  if (sprocketChainKind(a) !== sprocketChainKind(b)) {
     return 'The sprockets must use the same chain type.'
   }
   sprocketAxis(a, _axisA)
@@ -154,6 +162,7 @@ export function chainGeometry(a: PlacedPart, b: PlacedPart): ChainGeometry | nul
   const radiusA = sprocketPitchRadius(a)
   const radiusB = sprocketPitchRadius(b)
   const pitch = sprocketChainPitch(a)
+  const kind = sprocketChainKind(a)
   if (distance <= Math.abs(radiusA - radiusB) + MIN_CENTER_GAP) return null
 
   _xAxis.copy(_delta).normalize()
@@ -198,6 +207,7 @@ export function chainGeometry(a: PlacedPart, b: PlacedPart): ChainGeometry | nul
     axis: [_axisA.x, _axisA.y, _axisA.z],
     points,
     pitch,
+    kind,
   }
 }
 
