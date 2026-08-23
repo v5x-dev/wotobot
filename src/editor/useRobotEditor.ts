@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Quaternion, Vector3 } from 'three'
 import { effectiveGraph, unionConnected } from '@/model/connections'
 import {
+  chainSelection,
+  nextChainId,
+  sameChainPair,
+  type SprocketChain,
+} from '@/model/chains'
+import {
+  cloneChains,
   cloneParts,
   DEFAULT_CAMERA,
   nextInstanceId,
@@ -42,12 +49,18 @@ export type EditorTool = 'transform' | 'move' | 'color'
 
 type Snapshot = {
   parts: PlacedPart[]
+  chains: SprocketChain[]
   selectedIds: number[]
   primaryId: number | null
   nextId: number
 }
 
 type ClipboardPart = Omit<PlacedPart, 'instanceId'>
+
+type ClipboardChain = {
+  sprocketAIndex: number
+  sprocketBIndex: number
+}
 
 export type PendingPart = {
   key: string
@@ -82,6 +95,7 @@ const _pivot = new Vector3()
 
 export function useRobotEditor() {
   const [parts, setParts] = useState<PlacedPart[]>([])
+  const [chains, setChains] = useState<SprocketChain[]>([])
   const [nextId, setNextId] = useState(1)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [primaryId, setPrimaryId] = useState<number | null>(null)
@@ -89,6 +103,7 @@ export function useRobotEditor() {
   const [undoStack, setUndoStack] = useState<Snapshot[]>([])
   const [redoStack, setRedoStack] = useState<Snapshot[]>([])
   const [clipboard, setClipboard] = useState<ClipboardPart[]>([])
+  const [clipboardChains, setClipboardChains] = useState<ClipboardChain[]>([])
   const [placingPart, setPlacingPart] = useState<PendingPart | null>(null)
   const [movingSelection, setMovingSelection] = useState(false)
   const [tool, setTool] = useState<EditorTool>('transform')
@@ -99,10 +114,11 @@ export function useRobotEditor() {
   const [showGrid, setShowGrid] = useState(true)
   const [ortho, setOrtho] = useState(false)
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA)
-  const savedJson = useRef(serializeDocument([]))
+  const savedJson = useRef(serializeDocument([], DEFAULT_CAMERA, []))
   const fileHandle = useRef<FileSystemFileHandle | null>(null)
   const ignorePointerMiss = useRef(false)
   const partsRef = useRef(parts)
+  const chainsRef = useRef(chains)
   const selectedIdsRef = useRef(selectedIds)
   const primaryIdRef = useRef(primaryId)
   const nextIdRef = useRef(nextId)
@@ -140,6 +156,7 @@ export function useRobotEditor() {
   })
 
   partsRef.current = parts
+  chainsRef.current = chains
   selectedIdsRef.current = selectedIds
   primaryIdRef.current = primaryId
   nextIdRef.current = nextId
@@ -153,12 +170,13 @@ export function useRobotEditor() {
     [selectedIds, graph],
   )
 
-  const dirty = serializeDocument(parts, camera) !== savedJson.current
+  const dirty = serializeDocument(parts, camera, chains) !== savedJson.current
   const primary = parts.find((part) => part.instanceId === primaryId) ?? null
 
   const snapshot = useCallback(
     (): Snapshot => ({
       parts: cloneParts(partsRef.current),
+      chains: cloneChains(chainsRef.current),
       selectedIds: [...selectedIdsRef.current],
       primaryId: primaryIdRef.current,
       nextId: nextIdRef.current,
@@ -171,23 +189,28 @@ export function useRobotEditor() {
     setRedoStack([])
   }, [snapshot])
 
-  const markSaved = useCallback((nextParts: PlacedPart[], nextCamera = camera) => {
-    savedJson.current = serializeDocument(nextParts, nextCamera)
-  }, [camera])
+  const markSaved = useCallback(
+    (nextParts: PlacedPart[], nextChains: SprocketChain[], nextCamera = camera) => {
+      savedJson.current = serializeDocument(nextParts, nextCamera, nextChains)
+    },
+    [camera],
+  )
 
   const confirmDiscard = useCallback(() => {
-    if (serializeDocument(partsRef.current, camera) === savedJson.current) return true
+    if (serializeDocument(partsRef.current, camera, chainsRef.current) === savedJson.current) return true
     return window.confirm('You have unsaved changes. Discard them?')
   }, [camera])
 
   const loadParts = useCallback(
     (
       nextParts: PlacedPart[],
+      nextChains: SprocketChain[],
       name: string,
       handle: FileSystemFileHandle | null,
       nextCamera: CameraState,
     ) => {
       setParts(cloneParts(nextParts))
+      setChains(cloneChains(nextChains))
       setNextId(nextInstanceId(nextParts))
       setSelectedIds([])
       setPrimaryId(null)
@@ -199,7 +222,7 @@ export function useRobotEditor() {
       setCamera(nextCamera)
       setOrtho(nextCamera.ortho)
       fileHandle.current = handle
-      markSaved(nextParts, nextCamera)
+      markSaved(nextParts, nextChains, nextCamera)
     },
     [markSaved],
   )
@@ -378,6 +401,11 @@ export function useRobotEditor() {
     if (ids.size === 0) return
     pushHistory()
     setParts((current) => current.filter((part) => !ids.has(part.instanceId)))
+    setChains((current) =>
+      current.filter(
+        (chain) => !ids.has(chain.sprocketAId) && !ids.has(chain.sprocketBId),
+      ),
+    )
     setSelectedIds([])
     setPrimaryId(null)
   }, [pushHistory])
@@ -385,19 +413,28 @@ export function useRobotEditor() {
   const copy = useCallback(() => {
     const ids = unionConnected(selectedIdsRef.current, effectiveGraph(partsRef.current))
     if (ids.size === 0) return
+    const copiedParts = partsRef.current.filter((part) => ids.has(part.instanceId))
+    const indexById = new Map(copiedParts.map((part, index) => [part.instanceId, index]))
     setClipboard(
-      partsRef.current
-        .filter((part) => ids.has(part.instanceId))
-        .map((part) => ({
-          key: part.key,
-          param1: part.param1,
-          param2: part.param2,
-          position: [...part.position] as [number, number, number],
-          rotation: [...part.rotation] as [number, number, number],
-          color: part.color ? [...part.color] as [number, number, number] : null,
-          shape: part.shape ? clonePolycarbonateShape(part.shape) : undefined,
-          groupId: part.groupId,
-        })),
+      copiedParts.map((part) => ({
+        key: part.key,
+        param1: part.param1,
+        param2: part.param2,
+        position: [...part.position] as [number, number, number],
+        rotation: [...part.rotation] as [number, number, number],
+        color: part.color ? [...part.color] as [number, number, number] : null,
+        shape: part.shape ? clonePolycarbonateShape(part.shape) : undefined,
+        groupId: part.groupId,
+      })),
+    )
+    setClipboardChains(
+      chainsRef.current.flatMap((chain) => {
+        const sprocketAIndex = indexById.get(chain.sprocketAId)
+        const sprocketBIndex = indexById.get(chain.sprocketBId)
+        return sprocketAIndex == null || sprocketBIndex == null
+          ? []
+          : [{ sprocketAIndex, sprocketBIndex }]
+      }),
     )
   }, [])
 
@@ -437,7 +474,14 @@ export function useRobotEditor() {
         groupId: remapGroup(part.groupId),
       }
     })
+    let chainId = nextChainId(chainsRef.current)
+    const pastedChains = clipboardChains.map((chain) => ({
+      id: chainId++,
+      sprocketAId: pasted[chain.sprocketAIndex].instanceId,
+      sprocketBId: pasted[chain.sprocketBIndex].instanceId,
+    }))
     setParts((current) => [...current, ...pasted])
+    setChains((current) => [...current, ...pastedChains])
     setNextId(id)
     setSelectedIds(pasted.map((part) => part.instanceId))
     setPrimaryId(pasted[pasted.length - 1]?.instanceId ?? null)
@@ -451,7 +495,7 @@ export function useRobotEditor() {
         ],
       })),
     )
-  }, [clipboard, pushHistory])
+  }, [clipboard, clipboardChains, pushHistory])
 
   const duplicate = useCallback(() => {
     const ids = unionConnected(selectedIdsRef.current, effectiveGraph(partsRef.current))
@@ -461,6 +505,7 @@ export function useRobotEditor() {
     let groupId = nextGroupId(partsRef.current)
     const groupMap = new Map<number, number>()
     const copies: PlacedPart[] = []
+    const copiedIdBySource = new Map<number, number>()
     for (const part of partsRef.current) {
       if (!ids.has(part.instanceId)) continue
       let mappedGroup: number | undefined
@@ -479,12 +524,43 @@ export function useRobotEditor() {
         color: part.color ? [...part.color] : null,
         groupId: mappedGroup,
       })
+      copiedIdBySource.set(part.instanceId, id)
       id += 1
     }
+    let chainId = nextChainId(chainsRef.current)
+    const copiedChains = chainsRef.current.flatMap((chain) => {
+      const sprocketAId = copiedIdBySource.get(chain.sprocketAId)
+      const sprocketBId = copiedIdBySource.get(chain.sprocketBId)
+      return sprocketAId == null || sprocketBId == null
+        ? []
+        : [{ id: chainId++, sprocketAId, sprocketBId }]
+    })
     setParts((current) => [...current, ...copies])
+    setChains((current) => [...current, ...copiedChains])
     setNextId(id)
     setSelectedIds(copies.map((part) => part.instanceId))
     setPrimaryId(copies[copies.length - 1]?.instanceId ?? null)
+  }, [pushHistory])
+
+  const selectedChainAction = useMemo(
+    () => chainSelection(parts, selectedIds, chains),
+    [chains, parts, selectedIds],
+  )
+
+  const toggleSelectedChain = useCallback(() => {
+    const selection = chainSelection(partsRef.current, selectedIdsRef.current, chainsRef.current)
+    if (!selection.mode) return
+    const [aId, bId] = selectedIdsRef.current
+    pushHistory()
+    if (selection.mode === 'remove') {
+      setChains((current) => current.filter((chain) => !sameChainPair(chain, aId, bId)))
+      return
+    }
+    const id = nextChainId(chainsRef.current)
+    setChains((current) => [
+      ...current,
+      { id, sprocketAId: aId, sprocketBId: bId },
+    ])
   }, [pushHistory])
 
   const selectAll = useCallback(() => {
@@ -558,6 +634,7 @@ export function useRobotEditor() {
     setRedoStack((stack) => [...stack, snapshot()])
     setUndoStack((stack) => stack.slice(0, -1))
     setParts(cloneParts(prev.parts))
+    setChains(cloneChains(prev.chains))
     setSelectedIds([...prev.selectedIds])
     setPrimaryId(prev.primaryId)
     setNextId(prev.nextId)
@@ -569,6 +646,7 @@ export function useRobotEditor() {
     setUndoStack((stack) => [...stack, snapshot()])
     setRedoStack((stack) => stack.slice(0, -1))
     setParts(cloneParts(next.parts))
+    setChains(cloneChains(next.chains))
     setSelectedIds([...next.selectedIds])
     setPrimaryId(next.primaryId)
     setNextId(next.nextId)
@@ -576,7 +654,7 @@ export function useRobotEditor() {
 
   const newFile = useCallback(() => {
     if (!confirmDiscard()) return
-    loadParts([], UNTITLED_NAME, null, DEFAULT_CAMERA)
+    loadParts([], [], UNTITLED_NAME, null, DEFAULT_CAMERA)
   }, [confirmDiscard, loadParts])
 
   const openFile = useCallback(async () => {
@@ -585,7 +663,7 @@ export function useRobotEditor() {
       const picked = await openTextFile()
       if (!picked) return
       const parsed = parseDocument(picked.text)
-      loadParts(parsed.parts, picked.name, picked.handle, parsed.camera)
+      loadParts(parsed.parts, parsed.chains, picked.name, picked.handle, parsed.camera)
     } catch (error) {
       if (isAbortError(error)) return
       window.alert(explainError(error, 'Could not open that file.'))
@@ -595,16 +673,17 @@ export function useRobotEditor() {
   const saveToHandle = useCallback(
     async (handle: FileSystemFileHandle | null) => {
       const toSave = cloneParts(partsRef.current)
+      const chainsToSave = cloneChains(chainsRef.current)
       try {
         const saved = await saveTextFile({
-          text: serializeDocument(toSave, camera),
+          text: serializeDocument(toSave, camera, chainsToSave),
           suggestedName: withWbbExtension(fileName),
           handle,
         })
         if (!saved) return
         fileHandle.current = saved.handle
         setFileName(withWbbExtension(saved.name))
-        markSaved(toSave, camera)
+        markSaved(toSave, chainsToSave, camera)
       } catch (error) {
         if (isAbortError(error)) return
         window.alert(explainError(error, 'Could not save that file.'))
@@ -840,7 +919,7 @@ export function useRobotEditor() {
     }
 
     function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (serializeDocument(partsRef.current, camera) === savedJson.current) return
+      if (serializeDocument(partsRef.current, camera, chainsRef.current) === savedJson.current) return
       event.preventDefault()
       event.returnValue = ''
     }
@@ -857,6 +936,7 @@ export function useRobotEditor() {
 
   return {
     parts,
+    chains,
     selectedIds,
     primaryId,
     primary,
@@ -886,6 +966,8 @@ export function useRobotEditor() {
     placeAt,
     transformPart,
     updatePartShape,
+    selectedChainAction,
+    toggleSelectedChain,
     selectPart,
     onMoveStart,
     onMoveEnd,

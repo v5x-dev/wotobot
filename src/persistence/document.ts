@@ -1,9 +1,10 @@
 import { ZERO_ROTATION, clonePolycarbonateShape, polygonSize, type PlacedPart } from '@/model/parts'
+import { isSprocket, type SprocketChain } from '@/model/chains'
 import { partsListText as formatPartsList } from '@/model/weight'
 
 export type { PlacedPart }
 
-export const DOCUMENT_VERSION = 4
+export const DOCUMENT_VERSION = 5
 export const UNTITLED_NAME = 'untitled.wbb'
 export const PASTE_OFFSET = 1
 
@@ -22,6 +23,7 @@ export const DEFAULT_CAMERA: CameraState = {
 export type RobotDocument = {
   version: number
   parts: PlacedPart[]
+  chains?: SprocketChain[]
   camera?: CameraState
 }
 
@@ -39,14 +41,23 @@ export function cloneParts(parts: PlacedPart[]): PlacedPart[] {
   }))
 }
 
+export function cloneChains(chains: SprocketChain[]): SprocketChain[] {
+  return chains.map((chain) => ({ ...chain }))
+}
+
 export function nextInstanceId(parts: PlacedPart[]) {
   return parts.reduce((max, part) => Math.max(max, part.instanceId), 0) + 1
 }
 
-export function serializeDocument(parts: PlacedPart[], camera: CameraState = DEFAULT_CAMERA) {
+export function serializeDocument(
+  parts: PlacedPart[],
+  camera: CameraState = DEFAULT_CAMERA,
+  chains: SprocketChain[] = [],
+) {
   const document: RobotDocument = {
     version: DOCUMENT_VERSION,
     parts: cloneParts(parts),
+    chains: cloneChains(chains),
     camera: {
       target: cloneVec3(camera.target),
       position: cloneVec3(camera.position),
@@ -54,6 +65,27 @@ export function serializeDocument(parts: PlacedPart[], camera: CameraState = DEF
     },
   }
   return `${JSON.stringify(document, null, 2)}\n`
+}
+
+function asChain(value: unknown): SprocketChain | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  if (
+    typeof record.id !== 'number' ||
+    !Number.isInteger(record.id) ||
+    typeof record.sprocketAId !== 'number' ||
+    !Number.isInteger(record.sprocketAId) ||
+    typeof record.sprocketBId !== 'number' ||
+    !Number.isInteger(record.sprocketBId) ||
+    record.sprocketAId === record.sprocketBId
+  ) {
+    return null
+  }
+  return {
+    id: record.id,
+    sprocketAId: record.sprocketAId,
+    sprocketBId: record.sprocketBId,
+  }
 }
 
 function asVec3(value: unknown): [number, number, number] | null {
@@ -167,7 +199,11 @@ function asCamera(value: unknown): CameraState | null {
   return { target, position, ortho: record.ortho }
 }
 
-export function parseDocument(text: string): { parts: PlacedPart[]; camera: CameraState } {
+export function parseDocument(text: string): {
+  parts: PlacedPart[]
+  chains: SprocketChain[]
+  camera: CameraState
+} {
   const data: unknown = JSON.parse(text)
   const rawParts = Array.isArray(data)
     ? data
@@ -186,9 +222,33 @@ export function parseDocument(text: string): { parts: PlacedPart[]; camera: Came
     parts.push(part)
   }
 
+  const rawChains =
+    data && typeof data === 'object' && Array.isArray((data as RobotDocument).chains)
+      ? (data as RobotDocument).chains!
+      : []
+  const chains: SprocketChain[] = []
+  const usedChainIds = new Set<number>()
+  const partById = new Map(parts.map((part) => [part.instanceId, part]))
+  const usedPairs = new Set<string>()
+  for (const item of rawChains) {
+    const chain = asChain(item)
+    if (!chain) throw new Error('That file contains an invalid chain.')
+    if (usedChainIds.has(chain.id)) throw new Error('That file contains duplicate chain ids.')
+    const a = partById.get(chain.sprocketAId)
+    const b = partById.get(chain.sprocketBId)
+    if (!isSprocket(a) || !isSprocket(b)) {
+      throw new Error('That file contains a chain without two sprockets.')
+    }
+    const pair = [chain.sprocketAId, chain.sprocketBId].sort((left, right) => left - right).join(':')
+    if (usedPairs.has(pair)) throw new Error('That file contains a duplicate chain.')
+    usedChainIds.add(chain.id)
+    usedPairs.add(pair)
+    chains.push(chain)
+  }
+
   const camera =
     data && typeof data === 'object' ? asCamera((data as RobotDocument).camera) : null
-  return { parts, camera: camera ?? DEFAULT_CAMERA }
+  return { parts, chains, camera: camera ?? DEFAULT_CAMERA }
 }
 
 export function withWbbExtension(name: string) {

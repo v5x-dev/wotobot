@@ -13,6 +13,7 @@ import { InfiniteGrid } from '@/components/scene/InfiniteGrid'
 import { OrbitControls } from '@/components/scene/OrbitControls'
 import { PlacementPreview } from '@/components/scene/PlacementPreview'
 import { SceneParts } from '@/components/scene/SceneParts'
+import { SprocketChains } from '@/components/scene/SprocketChains'
 import { useRobotEditor } from '@/editor/useRobotEditor'
 import { Button } from '@/components/ui/button'
 import {
@@ -304,6 +305,9 @@ function App() {
                 onGroup={editor.groupSelected}
                 canUngroup={editor.canUngroup}
                 onUngroup={editor.ungroupSelected}
+                chainAction={editor.selectedChainAction.mode}
+                chainActionReason={editor.selectedChainAction.reason}
+                onToggleChain={editor.toggleSelectedChain}
               />
               {editor.tool === 'color' ? (
                 <ColorSwatches
@@ -351,6 +355,7 @@ function App() {
               <directionalLight position={[8, 12, 6]} intensity={0.8} />
               <CameraProjection ortho={editor.ortho} />
               {editor.showGrid ? <InfiniteGrid /> : null}
+              <SprocketChains parts={editor.parts} chains={editor.chains} />
               <SceneParts
                 parts={editor.parts}
                 selectedIds={editor.selectedIds}

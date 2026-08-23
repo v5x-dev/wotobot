@@ -1,4 +1,16 @@
-import { CircleDotDashed, Copy, Group, Move3d, MousePointer2, Palette, Scan, Trash2, Ungroup } from 'lucide-react'
+import {
+  CircleDotDashed,
+  Copy,
+  Group,
+  Link2,
+  Move3d,
+  MousePointer2,
+  Palette,
+  Scan,
+  Trash2,
+  Ungroup,
+  Unlink2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { COLOR_PRESETS, hexToRgb, rgbToHex } from '@/model/colors'
 import type { EditorTool } from '@/editor/useRobotEditor'
@@ -22,6 +34,9 @@ export function ToolsSidebar({
   onGroup,
   canUngroup,
   onUngroup,
+  chainAction,
+  chainActionReason,
+  onToggleChain,
 }: {
   tool: EditorTool
   onTool: (tool: EditorTool) => void
@@ -35,6 +50,9 @@ export function ToolsSidebar({
   onGroup: () => void
   canUngroup: boolean
   onUngroup: () => void
+  chainAction: 'add' | 'remove' | null
+  chainActionReason: string
+  onToggleChain: () => void
 }) {
   return (
     <div className="pointer-events-auto absolute top-3 left-3 z-20 flex h-fit w-fit flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-sm">
@@ -50,6 +68,17 @@ export function ToolsSidebar({
           <item.icon />
         </Button>
       ))}
+      <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
+      <Button
+        variant={chainAction === 'remove' ? 'secondary' : 'ghost'}
+        size="icon-sm"
+        aria-label={chainAction === 'remove' ? 'Remove chain' : 'Add chain'}
+        title={chainActionReason}
+        disabled={chainAction == null}
+        onClick={onToggleChain}
+      >
+        {chainAction === 'remove' ? <Unlink2 /> : <Link2 />}
+      </Button>
       <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
       <Button
         variant="ghost"
