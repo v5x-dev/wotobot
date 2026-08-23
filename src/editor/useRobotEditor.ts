@@ -93,10 +93,26 @@ const _delta = new Quaternion()
 const _pos = new Vector3()
 const _pivot = new Vector3()
 
+function debugStartupParts(): PlacedPart[] {
+  if (typeof window === 'undefined') return []
+  if (new URLSearchParams(window.location.search).get('debug') !== 'hs30') return []
+  return [
+    {
+      instanceId: 1,
+      key: 'Motion:SPKT:Sprocket',
+      param1: 'High Strength',
+      param2: '30T',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      color: null,
+    },
+  ]
+}
+
 export function useRobotEditor() {
-  const [parts, setParts] = useState<PlacedPart[]>([])
+  const [parts, setParts] = useState<PlacedPart[]>(() => debugStartupParts())
   const [chains, setChains] = useState<SprocketChain[]>([])
-  const [nextId, setNextId] = useState(1)
+  const [nextId, setNextId] = useState(() => (debugStartupParts().length > 0 ? 2 : 1))
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [primaryId, setPrimaryId] = useState<number | null>(null)
   const [fileName, setFileName] = useState(UNTITLED_NAME)

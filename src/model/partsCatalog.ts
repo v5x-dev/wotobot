@@ -1597,61 +1597,61 @@ export const PARTS: PartDefinition[] = [
       {
         "param1": "Normal",
         "param2": "24T",
-        "meshName": "24T",
+        "meshName": "SPKT_24T",
         "fbx": "Gears and Sprockets/Sprockets.fbx"
       },
       {
         "param1": "High Strength",
         "param2": "18T",
-        "meshName": "18T",
+        "meshName": "HSPK_18T",
         "fbx": "Gears and Sprockets/HS Sprockets.fbx"
       },
       {
         "param1": "Normal",
         "param2": "15T",
-        "meshName": "15T",
+        "meshName": "SPKT_15T",
         "fbx": "Gears and Sprockets/Sprockets.fbx"
       },
       {
         "param1": "Normal",
         "param2": "10T",
-        "meshName": "10T",
+        "meshName": "SPKT_10T",
         "fbx": "Gears and Sprockets/Sprockets.fbx"
       },
       {
         "param1": "High Strength",
         "param2": "30T",
-        "meshName": "30T",
+        "meshName": "HSPK_30T",
         "fbx": "Gears and Sprockets/HS Sprockets.fbx"
       },
       {
         "param1": "High Strength",
         "param2": "24T",
-        "meshName": "24T",
+        "meshName": "HSPK_24T",
         "fbx": "Gears and Sprockets/HS Sprockets.fbx"
       },
       {
         "param1": "High Strength",
         "param2": "6T",
-        "meshName": "6T",
+        "meshName": "HSPK_6T",
         "fbx": "Gears and Sprockets/HS Sprockets.fbx"
       },
       {
         "param1": "High Strength",
         "param2": "12T",
-        "meshName": "12T",
+        "meshName": "HSPK_12T",
         "fbx": "Gears and Sprockets/HS Sprockets.fbx"
       },
       {
         "param1": "Normal",
         "param2": "48T",
-        "meshName": "48T",
+        "meshName": "SPKT_48T",
         "fbx": "Gears and Sprockets/Sprockets.fbx"
       },
       {
         "param1": "Normal",
         "param2": "40T",
-        "meshName": "40T",
+        "meshName": "SPKT_40T",
         "fbx": "Gears and Sprockets/Sprockets.fbx"
       }
     ],

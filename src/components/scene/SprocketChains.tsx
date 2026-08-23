@@ -14,25 +14,25 @@ import {
 import type { PlacedPart } from '@/model/parts'
 
 const plateMaterial = new MeshStandardMaterial({
-  color: '#303236',
+  color: '#F2F2F2',
   metalness: 0.72,
   roughness: 0.48,
 })
 
 const rollerMaterial = new MeshStandardMaterial({
-  color: '#8a8d91',
+  color: '#F2F2F2',
   metalness: 0.8,
   roughness: 0.36,
 })
 
 const highStrengthPlateMaterial = new MeshStandardMaterial({
-  color: '#18191b',
+  color: '#F2F2F2',
   metalness: 0.05,
   roughness: 0.76,
 })
 
 const highStrengthPinMaterial = new MeshStandardMaterial({
-  color: '#34363a',
+  color: '#F2F2F2',
   metalness: 0.22,
   roughness: 0.65,
 })

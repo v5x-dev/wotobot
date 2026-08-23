@@ -3,10 +3,13 @@ import { Suspense, useMemo } from 'react'
 import {
   DoubleSide,
   ExtrudeGeometry,
+  FrontSide,
   Mesh,
   MeshStandardMaterial,
   Path,
+  Quaternion,
   Shape,
+  Vector3,
   type Material,
   type Object3D,
 } from 'three'
@@ -20,7 +23,12 @@ import {
   indexCatalogMeshes,
   pieceForHole,
 } from '@/model/channelGeometry'
-import { sprocketPitchRadius } from '@/model/chains'
+import {
+  chainGeometry,
+  resampleClosedPath,
+  type SprocketChain,
+} from '@/model/chains'
+import { eulerToQuat } from '@/model/math'
 import {
   channelProfileFromSize,
   findPart,
@@ -31,8 +39,8 @@ import {
   type PlacedPart,
 } from '@/model/parts'
 
-const CATALOG_FBX = '/models/c-channels.fbx'
-const SPLIT_FBX = '/models/c-channels-split.fbx'
+const CATALOG_FBX = modelUrl('Structure/C-Channels.fbx')
+const SPLIT_FBX = modelUrl('Structure/C-Channels (split).fbx')
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
 
 const aluminum = new MeshStandardMaterial({
@@ -70,16 +78,31 @@ const polycarbonate = new MeshStandardMaterial({
 
 function noopRaycast() {}
 
+function compactName(name: string) {
+  return name.toLowerCase().replace(/[\s_\-]/g, '')
+}
+
 function findNamedObject(root: Object3D, name: string) {
   if (!name) return null
+  let exactMesh: Mesh | null = null
   let exact: Object3D | null = null
+  let looseMesh: Mesh | null = null
   let loose: Object3D | null = null
   const lower = name.toLowerCase()
+  const compact = compactName(name)
   root.traverse((obj) => {
-    if (obj.name === name) exact = obj
-    else if (!loose && obj.name && obj.name.toLowerCase().includes(lower)) loose = obj
+    const mesh = obj as Mesh
+    const n = obj.name.toLowerCase()
+    const nCompact = compactName(obj.name)
+    if (obj.name === name || nCompact === compact) {
+      exact ??= obj
+      if (mesh.isMesh) exactMesh ??= mesh
+    } else if (obj.name && (n.includes(lower) || nCompact.includes(compact))) {
+      loose ??= obj
+      if (mesh.isMesh) looseMesh ??= mesh
+    }
   })
-  return exact ?? loose
+  return exactMesh ?? looseMesh ?? exact ?? loose
 }
 
 function firstMesh(root: Object3D) {
@@ -296,53 +319,48 @@ function MissingPart() {
   )
 }
 
-function SprocketPart({ part, isPreview }: { part: PlacedPart; isPreview: boolean }) {
-  const teeth = Math.max(3, Number(part.param2.match(/\d+/)?.[0]) || 10)
-  const highStrength = part.param1 === 'High Strength'
-  const pitchRadius = sprocketPitchRadius(part)
-  const outerRadius = pitchRadius + (highStrength ? 0.102 : 0.025)
-  const rootRadius = Math.max(0.1, pitchRadius - (highStrength ? 0.09 : 0.035))
-  const axleSize = highStrength ? 0.25 : 0.13
-  const thickness = part.param1 === 'High Strength' ? 0.525 : 0.492
-  const geometry = useMemo(() => {
-    const outline = new Shape()
-    for (let index = 0; index < teeth * 4; index += 1) {
-      const angle = (index / (teeth * 4)) * Math.PI * 2
-      const toothPhase = index % 4
-      const radius = toothPhase === 1 || toothPhase === 2 ? outerRadius : rootRadius
-      const x = Math.cos(angle) * radius
-      const y = Math.sin(angle) * radius
-      if (index === 0) outline.moveTo(x, y)
-      else outline.lineTo(x, y)
-    }
-    outline.closePath()
-
-    const halfAxle = axleSize / 2
-    const axleHole = new Path()
-    axleHole.moveTo(-halfAxle, -halfAxle)
-    axleHole.lineTo(-halfAxle, halfAxle)
-    axleHole.lineTo(halfAxle, halfAxle)
-    axleHole.lineTo(halfAxle, -halfAxle)
-    axleHole.closePath()
-    outline.holes.push(axleHole)
-
-    const result = new ExtrudeGeometry(outline, {
-      depth: thickness,
-      bevelEnabled: false,
-      curveSegments: 4,
+function SprocketPart({
+  part,
+  isPreview,
+  toothPhase,
+}: {
+  part: PlacedPart
+  isPreview: boolean
+  toothPhase: number
+}) {
+  const definition = findPart(part.key)
+  const variant = definition && variantFor(definition, part.param1, part.param2)
+  const url = variant?.fbx ? modelUrl(variant.fbx) : CATALOG_FBX
+  const fbx = useFBX(url)
+  const object = useMemo(() => {
+    if (!variant) return null
+    const source = findNamedObject(fbx, variant.meshName)
+    const meshSource = source && (source as Mesh).isMesh ? (source as Mesh) : firstMesh(source ?? fbx)
+    if (!meshSource) return null
+    const clone = prepareFbxClone(
+      meshSource,
+      isPreview ? 'model-preview' : 'model',
+      undefined,
+      part.color,
+    )
+    clone.traverse((obj) => {
+      const mesh = obj as Mesh
+      if (!mesh.isMesh) return
+      const apply = (material: Material) => {
+        if (!(material instanceof MeshStandardMaterial)) return
+        material.side = FrontSide
+        material.metalness = 0.15
+        material.roughness = 0.55
+      }
+      if (Array.isArray(mesh.material)) mesh.material.forEach(apply)
+      else apply(mesh.material)
     })
-    result.center()
-    return result
-  }, [axleSize, outerRadius, rootRadius, teeth, thickness])
-  const material = aluminumMaterial(part.color, isPreview)
+    return clone
+  }, [fbx, isPreview, part.color, variant])
 
-  return (
-    <mesh
-      geometry={geometry}
-      material={material}
-      {...(isPreview ? { raycast: noopRaycast } : {})}
-    />
-  )
+  if (!variant?.fbx || !object) return <MissingPart />
+
+  return <primitive object={object} rotation={[0, 0, toothPhase]} />
 }
 
 function PolycarbonatePart({ part, isPreview }: { part: PlacedPart; isPreview: boolean }) {
@@ -432,11 +450,13 @@ export function PlacedPartMesh({
   preview: isPreview = false,
   showHoles = false,
   detectHoles = false,
+  sprocketPhase = 0,
 }: {
   part: PlacedPart
   preview?: boolean
   showHoles?: boolean
   detectHoles?: boolean
+  sprocketPhase?: number
 }) {
   const definition = findPart(part.key)
   const material = aluminumMaterial(part.color, isPreview)
@@ -466,7 +486,7 @@ export function PlacedPartMesh({
   if (definition.id === 'SPKT') {
     return (
       <>
-        <SprocketPart part={part} isPreview={isPreview} />
+        <SprocketPart part={part} isPreview={isPreview} toothPhase={sprocketPhase} />
         {holes}
       </>
     )
@@ -551,7 +571,7 @@ export function PlacedPartMesh({
         url={modelUrl(fbx)}
         meshName={meshName}
         rotation={MODEL_ROTATION}
-        finish={isPreview ? 'model-preview' : 'model'}
+        finish={finish}
         color={part.color}
       />
       {holes}
@@ -559,8 +579,59 @@ export function PlacedPartMesh({
   )
 }
 
+function chainSprocketPhases(parts: PlacedPart[], chains: SprocketChain[]) {
+  const partById = new Map(parts.map((part) => [part.instanceId, part]))
+  const phases = new Map<number, number>()
+
+  for (const chain of chains) {
+    const a = partById.get(chain.sprocketAId)
+    const b = partById.get(chain.sprocketBId)
+    if (!a || !b) continue
+    const geometry = chainGeometry(a, b)
+    if (!geometry) continue
+    const linkPoints = resampleClosedPath(geometry.points, geometry.pitch)
+
+    for (const sprocket of [a, b]) {
+      if (phases.has(sprocket.instanceId)) continue
+      const center = new Vector3(...sprocket.position)
+      let closest: [number, number, number] | null = null
+      let closestDistance = Infinity
+      for (const point of linkPoints) {
+        const distance = center.distanceToSquared(new Vector3(...point))
+        if (distance >= closestDistance) continue
+        closestDistance = distance
+        closest = point
+      }
+      if (!closest) continue
+      const local = new Vector3(...closest).sub(center)
+      const inverseRotation = eulerToQuat(sprocket.rotation, new Quaternion()).invert()
+      local.applyQuaternion(inverseRotation)
+      phases.set(
+        sprocket.instanceId,
+        Math.atan2(local.y, local.x) - sprocketValleyOffset(sprocket),
+      )
+    }
+  }
+
+  return phases
+}
+
+/** Tooth-gap phases measured from the catalog sprocket meshes. */
+function sprocketValleyOffset(part: PlacedPart) {
+  const teeth = Math.max(3, Number(part.param2.match(/\d+/)?.[0]) || 10)
+  if (part.param1 === 'High Strength') {
+    if (teeth === 12) return Math.PI / 12
+    if (teeth === 24) return Math.PI / 24
+    return 0
+  }
+  if (teeth === 10) return Math.PI / 10
+  if (teeth === 15) return Math.PI / 30
+  return 0
+}
+
 export function SceneParts({
   parts,
+  chains,
   selectedIds,
   primaryId,
   connectedIds,
@@ -574,6 +645,7 @@ export function SceneParts({
   onMoveEnd,
 }: {
   parts: PlacedPart[]
+  chains: SprocketChain[]
   selectedIds: number[]
   primaryId: number | null
   connectedIds: Set<number>
@@ -591,6 +663,7 @@ export function SceneParts({
   onMoveEnd: () => void
 }) {
   const selected = new Set(selectedIds)
+  const sprocketPhases = useMemo(() => chainSprocketPhases(parts, chains), [chains, parts])
   return (
     <>
       {parts.map((part) => {
@@ -611,7 +684,12 @@ export function SceneParts({
             onMoveEnd={onMoveEnd}
           >
             <Suspense>
-              <PlacedPartMesh part={part} showHoles={showHoles} detectHoles={detectHoles} />
+              <PlacedPartMesh
+                part={part}
+                showHoles={showHoles}
+                detectHoles={detectHoles}
+                sprocketPhase={sprocketPhases.get(part.instanceId)}
+              />
             </Suspense>
           </SelectablePart>
         )

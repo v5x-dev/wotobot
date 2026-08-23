@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import json, re, shutil
+import re, shutil
 
 ROOT = Path("/home/pingu/Work/contrib/Protobot-Rebuilt")
 PREFABS = ROOT / "Assets/Resources/Part Prefabs"
@@ -306,7 +306,6 @@ for src, dest in icon_copies:
 groups = ["Structure", "Motion", "Electronics", "Pneumatics", "Competition"]
 catalog.sort(key=lambda p: (groups.index(p["group"]) if p["group"] in groups else 99, p["name"]))
 
-(OUT_WEB / "scripts/parts-catalog.json").write_text(json.dumps(catalog, indent=2))
 print("parts", len(catalog), "icons", len(list(icon_dir.glob("*.png"))))
 for p in catalog:
     p1 = (p["param1"] or {}).get("name")

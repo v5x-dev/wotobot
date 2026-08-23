@@ -22,6 +22,7 @@ import {
   type Material,
   type Object3D,
 } from 'three'
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib'
 import { GRID_SNAP, ROTATION_SNAP, snap } from '@/model/grid'
 
@@ -176,6 +177,16 @@ const fragmentShader = /* glsl */ `
 
 function isPartMesh(object: Object3D): object is Mesh {
   return (object as Mesh).isMesh && !object.userData.isOutline && !object.userData.skipOutline
+}
+
+function weldedOutlineGeometry(source: BufferGeometry) {
+  const positions = new BufferGeometry()
+  positions.setAttribute('position', source.getAttribute('position').clone())
+  if (source.index) positions.setIndex(source.index.clone())
+  const welded = mergeVertices(positions)
+  positions.dispose()
+  welded.computeVertexNormals()
+  return welded
 }
 
 function cloneWithStencil(material: Material) {
@@ -437,7 +448,7 @@ export function SelectablePart({
     outlineMaterialRef.current = outlineMaterial
 
     const restored: Array<{ mesh: Mesh; material: Material | Material[] }> = []
-    const outlineMeshes: Array<{ source: Mesh; outline: Mesh }> = []
+    const outlineMeshes: Array<{ source: Mesh; outline: Mesh; ownedGeometry?: BufferGeometry }> = []
     const stencilClones = new Map<Material, Material>()
 
     group.traverse((object) => {
@@ -454,19 +465,25 @@ export function SelectablePart({
 
       if (!object.geometry.attributes.normal) object.geometry.computeVertexNormals()
 
-      const outline = new Mesh(object.geometry, outlineMaterial)
+      const ownedGeometry = object.userData.weldOutline
+        ? weldedOutlineGeometry(object.geometry)
+        : undefined
+      const outline = new Mesh(ownedGeometry ?? object.geometry, outlineMaterial)
       outline.userData.isOutline = true
       outline.renderOrder = 1000
       outline.frustumCulled = false
       outline.raycast = () => {}
       object.add(outline)
-      outlineMeshes.push({ source: object, outline })
+      outlineMeshes.push({ source: object, outline, ownedGeometry })
     })
 
     return () => {
       outlineMaterialRef.current = null
       outlineMaterial.dispose()
-      for (const { source, outline } of outlineMeshes) source.remove(outline)
+      for (const { source, outline, ownedGeometry } of outlineMeshes) {
+        source.remove(outline)
+        ownedGeometry?.dispose()
+      }
       for (const { mesh, material } of restored) {
         mesh.material = material
       }

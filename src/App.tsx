@@ -37,7 +37,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 
 const IS_APPLE = /Mac|iPhone|iPad|iPod/.test(navigator.platform)
 const DOCS_URL = 'https://protobot.web.app/'
-const CAMERA_POSITION: [number, number, number] = [16, 12, 16]
+const CAMERA_POSITION: [number, number, number] = [5, 4, 5]
 
 function shortcut(key: string) {
   return IS_APPLE ? `⌘${key}` : `Ctrl+${key}`
@@ -357,6 +357,7 @@ function App() {
               <SprocketChains parts={editor.parts} chains={editor.chains} />
               <SceneParts
                 parts={editor.parts}
+                chains={editor.chains}
                 selectedIds={editor.selectedIds}
                 primaryId={editor.primaryId}
                 connectedIds={editor.connectedIds}
