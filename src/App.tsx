@@ -19,6 +19,7 @@ import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
 import { useRobotEditor } from '@/editor/useRobotEditor'
 import { AXIS_COLORS } from '@/model/colors'
+import { stemName } from '@/persistence/document'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -269,27 +270,32 @@ function App() {
             </TopMenu>
           </div>
           {renaming ? (
-            <Input
-              autoFocus
-              className="h-7 w-56 text-center text-sm"
-              defaultValue={editor.fileName}
-              onBlur={(event) => {
-                editor.renameFile(event.target.value)
-                setRenaming(false)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  editor.renameFile(event.currentTarget.value)
+            <div className="flex w-56 items-center">
+              <Input
+                autoFocus
+                className="h-7 rounded-r-none border-r-0 text-right text-sm"
+                defaultValue={stemName(editor.fileName)}
+                onBlur={(event) => {
+                  editor.renameFile(event.target.value)
                   setRenaming(false)
-                }
-                if (event.key === 'Escape') setRenaming(false)
-              }}
-            />
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    editor.renameFile(event.currentTarget.value)
+                    setRenaming(false)
+                  }
+                  if (event.key === 'Escape') setRenaming(false)
+                }}
+              />
+              <span className="flex h-7 items-center rounded-r-lg border border-l-0 border-input pr-2.5 text-sm text-muted-foreground">
+                .wbb
+              </span>
+            </div>
           ) : (
             <button
               type="button"
               className="truncate px-3 text-sm text-muted-foreground"
-              onClick={() => setRenaming(true)}
+              onDoubleClick={() => setRenaming(true)}
             >
               {editor.fileName}
               {editor.dirty ? '*' : ''}

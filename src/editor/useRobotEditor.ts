@@ -840,7 +840,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   }, [fileName])
 
   const renameFile = useCallback((name: string) => {
-    const next = withWbbExtension(name.trim() || 'untitled')
+    const next = `${name.trim().replace(/\.wbb$/i, '') || 'untitled'}.wbb`
     setFileName(next)
   }, [])
 
