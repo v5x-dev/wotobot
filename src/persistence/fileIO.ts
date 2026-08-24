@@ -8,6 +8,11 @@ const TEXT_TYPE = {
   accept: { 'text/plain': ['.txt'] },
 }
 
+const STEP_TYPE = {
+  description: 'STEP model',
+  accept: { 'model/step': ['.step', '.stp'] },
+}
+
 type FilePickerAcceptType = {
   description?: string
   accept: Record<string, string[]>
@@ -76,6 +81,16 @@ export async function openTextFile(): Promise<{
   const file = await pickWithInput('.wbb,.json,application/json')
   if (!file) return null
   return { name: file.name, text: await file.text(), handle: null }
+}
+
+export async function openStepFile(): Promise<File | null> {
+  const fs = window as WindowWithFS
+  if (fs.showOpenFilePicker) {
+    const [handle] = await fs.showOpenFilePicker({ multiple: false, types: [STEP_TYPE] })
+    return handle.getFile()
+  }
+
+  return pickWithInput('.step,.stp,model/step')
 }
 
 export async function writeTextFile(

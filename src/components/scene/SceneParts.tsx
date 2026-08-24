@@ -29,6 +29,7 @@ import {
   type SprocketChain,
 } from '@/model/chains'
 import { eulerToQuat } from '@/model/math'
+import { modelScaleFor } from '@/model/modelScale'
 import {
   channelProfileFromSize,
   findPart,
@@ -41,6 +42,8 @@ import {
 
 const CATALOG_FBX = modelUrl('Structure/C-Channels.fbx')
 const SPLIT_FBX = modelUrl('Structure/C-Channels (split).fbx')
+const ANGLE_CATALOG_FBX = modelUrl('Structure/Angles.fbx')
+const ANGLE_SPLIT_FBX = modelUrl('Structure/Angles (split).fbx')
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
 
 const aluminum = new MeshStandardMaterial({
@@ -157,11 +160,6 @@ function prepareFbxClone(
   clone.scale.setScalar(1)
   if (rotation) clone.rotation.set(...rotation)
   clone.traverse((obj) => {
-    if (obj !== clone) {
-      obj.position.set(0, 0, 0)
-      obj.scale.setScalar(1)
-    }
-
     const mesh = obj as Mesh
     if (!mesh.isMesh) return
 
@@ -243,6 +241,42 @@ function ChannelPart({
   }
 
   return <AssembledChannel pieces={pieces} profile={profile} holes={holes} material={material} />
+}
+
+function AnglePart({
+  size,
+  holes,
+  material,
+}: {
+  size: string
+  holes: number
+  material: MeshStandardMaterial
+}) {
+  const catalogFbx = useFBX(ANGLE_CATALOG_FBX)
+  const splitFbx = useFBX(ANGLE_SPLIT_FBX)
+  const catalog = useMemo(() => indexCatalogMeshes(catalogFbx), [catalogFbx])
+  const pieces = useMemo(() => indexCatalogMeshes(splitFbx), [splitFbx])
+  const geometry = catalog.get(`ANGL_${size}x${holes}`)
+
+  if (geometry) return <mesh geometry={geometry} material={material} />
+
+  const start = pieces.get(`ANGL_${size}-Start`)
+  const middle = pieces.get(`ANGL_${size}-Mid`)
+  const end = pieces.get(`ANGL_${size}-End`)
+  if (!start || !middle || !end) return <MissingPart />
+
+  return (
+    <group>
+      {Array.from({ length: holes }, (_, index) => (
+        <mesh
+          key={index}
+          geometry={index === 0 ? start : index === holes - 1 ? end : middle}
+          material={material}
+          position={[holeX(index, holes), 0, 0]}
+        />
+      ))}
+    </group>
+  )
 }
 
 function FbxMeshPart({
@@ -503,6 +537,16 @@ export function PlacedPartMesh({
     )
   }
 
+  if (definition.id === 'ANGL' && definition.generator === 'aluminum') {
+    const holeCount = Number(part.param2) || 5
+    return (
+      <>
+        <AnglePart size={part.param1} holes={holeCount} material={material} />
+        {holes}
+      </>
+    )
+  }
+
   if (definition.generator === 'plate' && definition.mesh?.fbx) {
     return (
       <>
@@ -557,6 +601,8 @@ export function PlacedPartMesh({
   const variant = variantFor(definition, part.param1, part.param2)
   const fbx = variant?.fbx ?? definition.mesh?.fbx
   const meshName = variant?.meshName || definition.mesh?.meshName || definition.name
+  const scale = fbx ? modelScaleFor(fbx) : 1
+  const modelScale = scale === 1 ? undefined : [scale, scale, scale] satisfies [number, number, number]
   if (!fbx) {
     return (
       <>
@@ -571,8 +617,9 @@ export function PlacedPartMesh({
       <FbxMeshPart
         url={modelUrl(fbx)}
         meshName={meshName}
+        scale={modelScale}
         rotation={MODEL_ROTATION}
-        finish={finish}
+        finish={isPreview ? 'model-preview' : 'model'}
         color={part.color}
       />
       {holes}

@@ -5,6 +5,7 @@ import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 import { MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
 import { AddSidebar } from '@/components/editor/AddSidebar'
 import { HotkeyDialog } from '@/components/editor/HotkeyDialog'
+import { OnshapeImportDialog } from '@/components/editor/OnshapeImportDialog'
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel'
 import { ColorSwatches, ToolsSidebar } from '@/components/editor/ToolsSidebar'
 import { PolycarbonateBadge } from '@/components/editor/PolycarbonateBadge'
@@ -19,7 +20,10 @@ import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
 import { useRobotEditor } from '@/editor/useRobotEditor'
 import { AXIS_COLORS } from '@/model/colors'
-import { stemName } from '@/persistence/document'
+import { stemName, type CameraState } from '@/persistence/document'
+import { isAbortError, openStepFile } from '@/persistence/fileIO'
+import { convertStepToMetadata } from '@/persistence/onshapeImport'
+import { stepMetadataToParts } from '@/persistence/onshapeParts'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -73,6 +77,26 @@ function FocusCamera({ point, token }: { point: [number, number, number] | null;
     if (!point || !controls || token === 0) return
     controls.target.set(...point)
   }, [controls, point, token])
+  return null
+}
+
+function CameraStateSync({ state }: { state: CameraState }) {
+  const camera = useThree((three) => three.camera)
+  const controls = useThree((three) => three.controls) as unknown as {
+    target: Vector3
+    update: () => void
+  } | undefined
+
+  useLayoutEffect(() => {
+    camera.position.set(...state.position)
+    camera.lookAt(...state.target)
+    if (controls) {
+      controls.target.set(...state.target)
+      controls.update()
+    }
+    camera.updateProjectionMatrix()
+  }, [camera, controls, state])
+
   return null
 }
 
@@ -143,10 +167,21 @@ function App() {
   const editor = useRobotEditor(hotkeys)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [hotkeysOpen, setHotkeysOpen] = useState(false)
+  const [onshapeImport, setOnshapeImport] = useState({
+    open: false,
+    fileName: '',
+    error: '',
+    loading: false,
+    progress: '',
+    startedAt: 0,
+    fileSize: 0,
+  })
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [focusToken, setFocusToken] = useState(0)
   const fpsLabel = useRef<HTMLDivElement>(null)
+  const triangleLabel = useRef<HTMLDivElement>(null)
+  const importAbort = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -179,6 +214,51 @@ function App() {
     ids.forEach((id, index) => editor.selectPart(id, index > 0))
   }
 
+  async function importFromOnshape() {
+    try {
+      const file = await openStepFile()
+      if (!file) return
+      const abort = new AbortController()
+      importAbort.current = abort
+      setOnshapeImport({
+        open: true,
+        fileName: file.name,
+        error: '',
+        loading: true,
+        progress: 'Reading file from disk',
+        startedAt: Date.now(),
+        fileSize: file.size,
+      })
+      const metadata = await convertStepToMetadata(file, (progress) => {
+        setOnshapeImport((current) => ({ ...current, progress }))
+      }, abort.signal)
+      importAbort.current = null
+      const imported = stepMetadataToParts(metadata)
+      if (imported.parts.length === 0) {
+        throw new Error('No supported Protobot catalog parts were found in this STEP assembly.')
+      }
+      if (!editor.importParts(imported.parts, file.name)) {
+        setOnshapeImport((current) => ({ ...current, open: false, loading: false }))
+        return
+      }
+      setOnshapeImport((current) => ({ ...current, open: false, loading: false }))
+    } catch (error) {
+      if (isAbortError(error)) return
+      setOnshapeImport((current) => ({
+        ...current,
+        open: true,
+        error: error instanceof Error ? error.message : 'The STEP file could not be converted.',
+        loading: false,
+      }))
+    }
+  }
+
+  function cancelOnshapeImport() {
+    importAbort.current?.abort()
+    importAbort.current = null
+    setOnshapeImport((current) => ({ ...current, open: false, loading: false }))
+  }
+
   return (
     <TooltipProvider>
       <div className="flex h-svh flex-col overflow-hidden">
@@ -202,6 +282,9 @@ function App() {
                 <DropdownMenuShortcut>{formatHotkey(hotkeys.saveFileAs)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void importFromOnshape()}>
+                Import from Onshape...
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void editor.exportParts()}>
                 Export
               </DropdownMenuItem>
@@ -364,11 +447,12 @@ function App() {
                   <ChainBadge linkCount={editor.selectedChainLinkCount} />
                 ) : null}
               </div>
-              <div
-                ref={fpsLabel}
-                className="absolute top-36 right-3 select-none font-mono text-xs tabular-nums text-white/70"
-              >
-                0 FPS
+              <div className="pointer-events-none absolute top-36 right-3 flex select-none flex-col items-end font-mono text-xs tabular-nums text-white/70">
+                <div ref={fpsLabel}>0 FPS</div>
+                <div>
+                  {editor.parts.length} {editor.parts.length === 1 ? 'model' : 'models'}
+                </div>
+                <div ref={triangleLabel}>0 triangles</div>
               </div>
             </div>
             <Canvas
@@ -382,6 +466,7 @@ function App() {
             >
               <ambientLight intensity={0.6} />
               <directionalLight position={[8, 12, 6]} intensity={0.8} />
+              <CameraStateSync state={editor.camera} />
               <CameraProjection ortho={editor.ortho} />
               {editor.showGrid ? <InfiniteGrid /> : null}
               <SprocketChains
@@ -429,10 +514,15 @@ function App() {
               </Suspense>
               <OrbitControls
                 makeDefault
-                target={[0, 0, 0]}
+                target={editor.camera.target}
                 minDistance={0.5}
                 maxDistance={1000}
                 mouseButtons={{ LEFT: undefined, MIDDLE: MOUSE.PAN, RIGHT: MOUSE.ROTATE }}
+                onEnd={({ target, position }) => editor.setCamera({
+                  target,
+                  position,
+                  ortho: editor.ortho,
+                })}
               />
               <GizmoHelper alignment="top-right" margin={[76, 76]}>
                 <GizmoViewport
@@ -448,7 +538,7 @@ function App() {
                 onSelect={boxSelect}
                 hotkey={hotkeys.boxSelect}
               />
-              <FpsCounter target={fpsLabel} />
+              <FpsCounter target={fpsLabel} triangleTarget={triangleLabel} />
             </Canvas>
           </SidebarInset>
           <AddSidebar
@@ -468,6 +558,20 @@ function App() {
             </DialogHeader>
           </DialogContent>
         </Dialog>
+        <OnshapeImportDialog
+          open={onshapeImport.open}
+          fileName={onshapeImport.fileName}
+          error={onshapeImport.error}
+          loading={onshapeImport.loading}
+          progress={onshapeImport.progress}
+          startedAt={onshapeImport.startedAt}
+          fileSize={onshapeImport.fileSize}
+          onCancel={cancelOnshapeImport}
+          onOpenChange={(open) => {
+            if (!open && onshapeImport.loading) cancelOnshapeImport()
+            else setOnshapeImport((current) => ({ ...current, open }))
+          }}
+        />
         <HotkeyDialog
           open={hotkeysOpen}
           onOpenChange={setHotkeysOpen}

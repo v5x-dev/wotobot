@@ -787,6 +787,33 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     loadParts([], [], UNTITLED_NAME, null, DEFAULT_CAMERA)
   }, [confirmDiscard, loadParts])
 
+  const importParts = useCallback((nextParts: PlacedPart[], name: string) => {
+    if (!confirmDiscard()) return false
+    const min: [number, number, number] = [Infinity, Infinity, Infinity]
+    const max: [number, number, number] = [-Infinity, -Infinity, -Infinity]
+    for (const part of nextParts) {
+      for (let axis = 0; axis < 3; axis += 1) {
+        min[axis] = Math.min(min[axis], part.position[axis])
+        max[axis] = Math.max(max[axis], part.position[axis])
+      }
+    }
+    const target = nextParts.length === 0
+      ? [0, 0, 0] as [number, number, number]
+      : min.map((value, axis) => (value + max[axis]) / 2) as [number, number, number]
+    const frontSpan = nextParts.length === 0
+      ? 10
+      : Math.max(max[0] - min[0], max[1] - min[1], 10)
+    const camera = {
+      ortho: true,
+      target,
+      position: [target[0], target[1], target[2] + frontSpan * 2.5] as [number, number, number],
+    }
+    setShowGrid(false)
+    loadParts(nextParts, [], `${stemName(name)}.wbb`, null, camera)
+    savedJson.current = serializeDocument([], DEFAULT_CAMERA, [])
+    return true
+  }, [confirmDiscard, loadParts])
+
   const openFile = useCallback(async () => {
     if (!confirmDiscard()) return
     try {
@@ -1121,6 +1148,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     canPaste: clipboard.length > 0,
     newFile,
     openFile,
+    importParts,
     saveFile,
     saveFileAs,
     exportParts,

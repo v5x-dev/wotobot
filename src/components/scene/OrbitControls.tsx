@@ -11,6 +11,7 @@ export function OrbitControls({
   makeDefault,
   camera,
   enableDamping = true,
+  onEnd,
   ...props
 }: {
   makeDefault?: boolean
@@ -20,6 +21,10 @@ export function OrbitControls({
   minDistance?: number
   maxDistance?: number
   mouseButtons?: ThreeOrbitControls['mouseButtons']
+  onEnd?: (state: {
+    target: [number, number, number]
+    position: [number, number, number]
+  }) => void
 }) {
   const defaultCamera = useThree((state) => state.camera)
   const gl = useThree((state) => state.gl)
@@ -50,6 +55,16 @@ export function OrbitControls({
     controls.connect(explDomElement)
     return () => controls.dispose()
   }, [controls, explDomElement])
+
+  useEffect(() => {
+    if (!onEnd) return
+    const report = () => onEnd({
+      target: controls.target.toArray() as [number, number, number],
+      position: controls.object.position.toArray() as [number, number, number],
+    })
+    controls.addEventListener('end', report)
+    return () => controls.removeEventListener('end', report)
+  }, [controls, onEnd])
 
   useEffect(() => {
     if (!makeDefault) return
