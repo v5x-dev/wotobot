@@ -7,6 +7,22 @@ import type { Camera } from 'three'
 const DAMPING_FPS = 60
 const MAX_DELTA = 0.1
 
+function setCamera(controls: ThreeOrbitControls, camera: Camera) {
+  controls.object = camera
+  controls.update()
+}
+
+function updateWithFrameRateIndependentDamping(controls: ThreeOrbitControls, delta: number) {
+  if (!controls.enabled) return
+  const dt = Math.min(Math.max(delta, 0), MAX_DELTA)
+  const damping = controls.dampingFactor
+  if (controls.enableDamping) {
+    controls.dampingFactor = 1 - (1 - damping) ** (dt * DAMPING_FPS)
+  }
+  controls.update(dt)
+  controls.dampingFactor = damping
+}
+
 export function OrbitControls({
   makeDefault,
   camera,
@@ -36,19 +52,11 @@ export function OrbitControls({
   const [controls] = useState(() => new ThreeOrbitControls(explCamera))
 
   useLayoutEffect(() => {
-    controls.object = explCamera
-    controls.update()
+    setCamera(controls, explCamera)
   }, [controls, explCamera])
 
   useFrame((_, delta) => {
-    if (!controls.enabled) return
-    const dt = Math.min(Math.max(delta, 0), MAX_DELTA)
-    const damping = controls.dampingFactor
-    if (controls.enableDamping) {
-      controls.dampingFactor = 1 - (1 - damping) ** (dt * DAMPING_FPS)
-    }
-    controls.update(dt)
-    controls.dampingFactor = damping
+    updateWithFrameRateIndependentDamping(controls, delta)
   }, -1)
 
   useEffect(() => {

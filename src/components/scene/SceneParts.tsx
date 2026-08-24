@@ -17,11 +17,12 @@ import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
 import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
+  assembleLinearSplitGeometry,
+  assembleChannelGeometry,
   collectChannelPieces,
+  collectLinearSplitPieces,
   getCatalogGeometry,
-  holeX,
   indexCatalogMeshes,
-  pieceForHole,
 } from '@/model/channelGeometry'
 import {
   chainGeometry,
@@ -44,6 +45,7 @@ const CATALOG_FBX = modelUrl('Structure/C-Channels.fbx')
 const SPLIT_FBX = modelUrl('Structure/C-Channels (split).fbx')
 const ANGLE_CATALOG_FBX = modelUrl('Structure/Angles.fbx')
 const ANGLE_SPLIT_FBX = modelUrl('Structure/Angles (split).fbx')
+const U_CHANNEL_SPLIT_FBX = modelUrl('Structure/U-Channels (split).fbx')
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
 
 const aluminum = new MeshStandardMaterial({
@@ -82,7 +84,7 @@ const polycarbonate = new MeshStandardMaterial({
 function noopRaycast() {}
 
 function compactName(name: string) {
-  return name.toLowerCase().replace(/[\s_\-]/g, '')
+  return name.toLowerCase().replace(/[\s_-]/g, '')
 }
 
 function findNamedObject(root: Object3D, name: string) {
@@ -194,23 +196,17 @@ function AssembledChannel({
   material: MeshStandardMaterial
 }) {
   const profilePieces = pieces[profile]
+  const geometry = useMemo(
+    () => assembleChannelGeometry(profilePieces, holes),
+    [holes, profilePieces],
+  )
 
   return (
-    <group>
-      {Array.from({ length: holes }, (_, index) => {
-        const { geometry, flip } = pieceForHole(profilePieces, index + 1)
-        return (
-          <mesh
-            key={index}
-            geometry={geometry}
-            material={material}
-            position={[holeX(index, holes), 0, 0]}
-            rotation-z={flip ? Math.PI : 0}
-            {...(material === preview ? { raycast: noopRaycast } : {})}
-          />
-        )
-      })}
-    </group>
+    <mesh
+      geometry={geometry}
+      material={material}
+      {...(material === preview ? { raycast: noopRaycast } : {})}
+    />
   )
 }
 
@@ -240,7 +236,14 @@ function ChannelPart({
     )
   }
 
-  return <AssembledChannel pieces={pieces} profile={profile} holes={holes} material={material} />
+  return (
+    <AssembledChannel
+      pieces={pieces}
+      profile={profile}
+      holes={holes}
+      material={material}
+    />
+  )
 }
 
 function AnglePart({
@@ -255,28 +258,39 @@ function AnglePart({
   const catalogFbx = useFBX(ANGLE_CATALOG_FBX)
   const splitFbx = useFBX(ANGLE_SPLIT_FBX)
   const catalog = useMemo(() => indexCatalogMeshes(catalogFbx), [catalogFbx])
-  const pieces = useMemo(() => indexCatalogMeshes(splitFbx), [splitFbx])
+  const pieces = useMemo(() => collectLinearSplitPieces(splitFbx, {
+    start: `ANGL_${size}-Start`,
+    end: `ANGL_${size}-End`,
+    mid: `ANGL_${size}-Mid`,
+    mid5Start: `ANGL_${size}-Mid5Start`,
+    mid5End: `ANGL_${size}-Mid5End`,
+  }), [size, splitFbx])
   const geometry = catalog.get(`ANGL_${size}x${holes}`)
+  const assembled = useMemo(
+    () => geometry ? null : assembleLinearSplitGeometry(pieces, holes),
+    [geometry, holes, pieces],
+  )
 
   if (geometry) return <mesh geometry={geometry} material={material} />
+  if (!assembled) return <MissingPart />
+  return <mesh geometry={assembled} material={material} />
+}
 
-  const start = pieces.get(`ANGL_${size}-Start`)
-  const middle = pieces.get(`ANGL_${size}-Mid`)
-  const end = pieces.get(`ANGL_${size}-End`)
-  if (!start || !middle || !end) return <MissingPart />
-
-  return (
-    <group>
-      {Array.from({ length: holes }, (_, index) => (
-        <mesh
-          key={index}
-          geometry={index === 0 ? start : index === holes - 1 ? end : middle}
-          material={material}
-          position={[holeX(index, holes), 0, 0]}
-        />
-      ))}
-    </group>
+function UChannelPart({ holes, material }: { holes: number; material: MeshStandardMaterial }) {
+  const splitFbx = useFBX(U_CHANNEL_SPLIT_FBX)
+  const pieces = useMemo(() => collectLinearSplitPieces(splitFbx, {
+    start: 'UChannel-Start',
+    end: 'UChannel-End',
+    mid: 'UChannel-Mid',
+    mid5Start: 'UChannel-Mid5Start',
+    mid5End: 'UChannel-Mid5End',
+  }), [splitFbx])
+  const geometry = useMemo(
+    () => assembleLinearSplitGeometry(pieces, holes),
+    [holes, pieces],
   )
+
+  return <mesh geometry={geometry} material={material} />
 }
 
 function FbxMeshPart({
@@ -446,7 +460,7 @@ function HoleColliders({
 }) {
   const holes = useMemo(
     () => holesForPart(part),
-    [part.key, part.param1, part.param2, part.shape],
+    [part],
   )
 
   return (
@@ -542,6 +556,16 @@ export function PlacedPartMesh({
     return (
       <>
         <AnglePart size={part.param1} holes={holeCount} material={material} />
+        {holes}
+      </>
+    )
+  }
+
+  if (definition.id === 'UCHL' && definition.generator === 'aluminum') {
+    const holeCount = Number(part.param2) || 20
+    return (
+      <>
+        <UChannelPart holes={holeCount} material={material} />
         {holes}
       </>
     )
@@ -743,14 +767,16 @@ export function SceneParts({
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
           >
-            <Suspense>
-              <PlacedPartMesh
-                part={part}
-                showHoles={showHoles}
-                detectHoles={detectHoles}
-                sprocketPhase={sprocketPhases.get(part.instanceId)}
-              />
-            </Suspense>
+            <group userData={{ debugModelInstanceId: part.instanceId }}>
+              <Suspense>
+                <PlacedPartMesh
+                  part={part}
+                  showHoles={showHoles}
+                  detectHoles={detectHoles}
+                  sprocketPhase={sprocketPhases.get(part.instanceId)}
+                />
+              </Suspense>
+            </group>
           </SelectablePart>
         )
       })}

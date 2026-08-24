@@ -1,7 +1,7 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import { GizmoHelper, GizmoViewport } from '@react-three/drei'
 import { CircleHelp, File, Maximize2, Minimize2, Pencil } from 'lucide-react'
-import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
 import { AddSidebar } from '@/components/editor/AddSidebar'
 import { HotkeyDialog } from '@/components/editor/HotkeyDialog'
@@ -181,7 +181,25 @@ function App() {
   const [focusToken, setFocusToken] = useState(0)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
+  const modelTriangleList = useRef<HTMLDivElement>(null)
   const importAbort = useRef<AbortController | null>(null)
+
+  const setFpsLabel = useCallback((label: string) => {
+    if (fpsLabel.current) fpsLabel.current.textContent = label
+  }, [])
+  const setTriangleLabel = useCallback((label: string) => {
+    if (triangleLabel.current) triangleLabel.current.textContent = label
+  }, [])
+  const setModelTriangleLabels = useCallback((labels: string[]) => {
+    if (!modelTriangleList.current) return
+    modelTriangleList.current.replaceChildren(
+      ...labels.map((label) => {
+        const row = document.createElement('div')
+        row.textContent = label
+        return row
+      }),
+    )
+  }, [])
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -453,6 +471,7 @@ function App() {
                   {editor.parts.length} {editor.parts.length === 1 ? 'model' : 'models'}
                 </div>
                 <div ref={triangleLabel}>0 triangles</div>
+                <div ref={modelTriangleList} className="mt-1 text-right" />
               </div>
             </div>
             <Canvas
@@ -538,7 +557,12 @@ function App() {
                 onSelect={boxSelect}
                 hotkey={hotkeys.boxSelect}
               />
-              <FpsCounter target={fpsLabel} triangleTarget={triangleLabel} />
+              <FpsCounter
+                onFpsChange={setFpsLabel}
+                onTriangleChange={setTriangleLabel}
+                onModelTrianglesChange={setModelTriangleLabels}
+                parts={editor.parts}
+              />
             </Canvas>
           </SidebarInset>
           <AddSidebar

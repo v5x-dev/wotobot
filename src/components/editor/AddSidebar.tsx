@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -79,7 +79,6 @@ export function AddSidebar({
   onStopPlacing,
 }: Props) {
   const [selectedKey, setSelectedKey] = useState<string | null>(partKey(CHANNEL))
-  const [open, setOpen] = useState(false)
   const [param1, setParam1] = useState(defaultParamValue(CHANNEL.param1))
   const [param2, setParam2] = useState(defaultParamValue(CHANNEL.param2))
   const [error, setError] = useState<string | null>(null)
@@ -87,15 +86,10 @@ export function AddSidebar({
 
   const selected = PARTS.find((part) => partKey(part) === selectedKey) ?? CHANNEL
 
-  useEffect(() => {
-    if (!placing) setOpen(false)
-  }, [placing])
-
   const togglePart = useCallback(
     (part: PartDefinition) => {
       const key = partKey(part)
-      if (open && key === selectedKey) {
-        setOpen(false)
+      if (placing && key === selectedKey) {
         onStopPlacing()
         return
       }
@@ -105,10 +99,9 @@ export function AddSidebar({
       setParam1(nextParam1)
       setParam2(nextParam2)
       setError(null)
-      setOpen(true)
       onStartPlacing(part, nextParam1, nextParam2)
     },
-    [onStartPlacing, onStopPlacing, open, selectedKey],
+    [onStartPlacing, onStopPlacing, placing, selectedKey],
   )
 
   function changeParam1(value: string) {
@@ -130,9 +123,8 @@ export function AddSidebar({
   return (
     <Sidebar side="right" collapsible="icon">
       <Popover
-        open={open}
+        open={placing}
         onOpenChange={(next) => {
-          setOpen(next)
           if (!next && placing) onStopPlacing()
         }}
       >
@@ -160,7 +152,7 @@ export function AddSidebar({
                         key={key}
                         part={part}
                         isSelected={key === selectedKey}
-                        hideTooltip={open && key === selectedKey}
+                        hideTooltip={placing && key === selectedKey}
                         onToggle={togglePart}
                       />
                     )

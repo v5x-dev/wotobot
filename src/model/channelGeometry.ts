@@ -1,4 +1,5 @@
-import { BufferGeometry, type Mesh, type Object3D } from 'three'
+import { BufferGeometry, Float32BufferAttribute, type Mesh, type Object3D } from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 export const CHANNEL_PROFILES = [2, 3, 5] as const
 export type ChannelProfile = (typeof CHANNEL_PROFILES)[number]
@@ -9,11 +10,20 @@ export const MAX_HOLES = 35
 export type ChannelPieces = Record<
   ChannelProfile,
   {
+    single: BufferGeometry
     endcap: BufferGeometry
     mid: BufferGeometry
     mid5: BufferGeometry
   }
 >
+
+export type LinearSplitPieces = {
+  start: BufferGeometry
+  end: BufferGeometry
+  mid: BufferGeometry
+  mid5Start: BufferGeometry
+  mid5End: BufferGeometry
+}
 
 const catalogCache = new Map<string, BufferGeometry>()
 
@@ -28,12 +38,89 @@ export function holeX(index: number, holeCount: number) {
 export function pieceForHole(
   pieces: ChannelPieces[ChannelProfile],
   hole: number,
+  holeCount: number,
 ): { geometry: BufferGeometry; flip: boolean } {
-  if (hole === 1) return { geometry: pieces.endcap, flip: true }
-  if (hole === MAX_HOLES) return { geometry: pieces.endcap, flip: false }
-  if (hole % 5 === 0) return { geometry: pieces.mid5, flip: true }
-  if ((hole - 1) % 5 === 0) return { geometry: pieces.mid5, flip: false }
-  return { geometry: pieces.mid, flip: false }
+  if (holeCount === 1) return { geometry: pieces.single, flip: false }
+  if (hole === 1) return { geometry: pieces.endcap, flip: false }
+  if (hole === holeCount) return { geometry: pieces.endcap, flip: true }
+  if (hole % 5 === 0) return { geometry: pieces.mid5, flip: false }
+  if (hole % 5 === 1) return { geometry: pieces.mid5, flip: true }
+  return { geometry: pieces.mid, flip: true }
+}
+
+export function withoutChannelSeamFaces(source: BufferGeometry, keepNegativeEnd = false) {
+  const geometry = source.index ? source.toNonIndexed() : source.clone()
+  const position = geometry.getAttribute('position')
+  geometry.computeBoundingBox()
+  const bounds = geometry.boundingBox
+  if (!bounds) return geometry
+
+  const epsilon = Math.max(1, bounds.max.x - bounds.min.x) * 1e-5
+  const kept: number[] = []
+  for (let index = 0; index < position.count; index += 3) {
+    const x0 = position.getX(index)
+    const x1 = position.getX(index + 1)
+    const x2 = position.getX(index + 2)
+    const onNegativeEnd = [x0, x1, x2].every((x) => Math.abs(x - bounds.min.x) <= epsilon)
+    const onPositiveEnd = [x0, x1, x2].every((x) => Math.abs(x - bounds.max.x) <= epsilon)
+    if ((onNegativeEnd && !keepNegativeEnd) || onPositiveEnd) continue
+    kept.push(index, index + 1, index + 2)
+  }
+
+  const result = new BufferGeometry()
+  for (const [name, attribute] of Object.entries(geometry.attributes)) {
+    const values = kept.flatMap((index) =>
+      Array.from({ length: attribute.itemSize }, (_, component) => attribute.array[index * attribute.itemSize + component]),
+    )
+    result.setAttribute(name, new Float32BufferAttribute(values, attribute.itemSize, attribute.normalized))
+  }
+  result.userData = { ...geometry.userData }
+  geometry.dispose()
+  return result
+}
+
+export function assembleChannelGeometry(
+  pieces: ChannelPieces[ChannelProfile],
+  holeCount: number,
+) {
+  const transformed = Array.from({ length: holeCount }, (_, index) => {
+    const { geometry: source, flip } = pieceForHole(pieces, index + 1, holeCount)
+    const geometry = source.clone()
+    if (flip) geometry.rotateZ(Math.PI)
+    geometry.translate(holeX(index, holeCount), 0, 0)
+    return geometry
+  })
+  const merged = mergeGeometries(transformed)
+  transformed.forEach((geometry) => geometry.dispose())
+  if (!merged) throw new Error('Could not assemble C-channel geometry')
+  return merged
+}
+
+export function pieceForLinearHole(
+  pieces: LinearSplitPieces,
+  hole: number,
+  holeCount: number,
+) {
+  if (hole === 1) return pieces.end
+  if (hole === holeCount) return pieces.start
+  if (hole % 5 === 0) return pieces.mid5End
+  if (hole % 5 === 1) return pieces.mid5Start
+  return pieces.mid
+}
+
+export function assembleLinearSplitGeometry(
+  pieces: LinearSplitPieces,
+  holeCount: number,
+) {
+  const transformed = Array.from({ length: holeCount }, (_, index) => {
+    const geometry = pieceForLinearHole(pieces, index + 1, holeCount).clone()
+    geometry.translate(holeX(index, holeCount), 0, 0)
+    return geometry
+  })
+  const merged = mergeGeometries(transformed)
+  transformed.forEach((geometry) => geometry.dispose())
+  if (!merged) throw new Error('Could not assemble split geometry')
+  return merged
 }
 
 export function catalogMeshName(profile: ChannelProfile, holes: number) {
@@ -67,6 +154,39 @@ export function indexCatalogMeshes(root: Object3D) {
   return meshes
 }
 
+export function collectLinearSplitPieces(
+  root: Object3D,
+  names: Record<keyof LinearSplitPieces, string>,
+): LinearSplitPieces {
+  const meshes = indexCatalogMeshes(root)
+  const pick = (name: string) => {
+    const geometry = meshes.get(name)
+    if (!geometry) throw new Error(`Missing split piece ${name}`)
+    return withoutChannelSeamFaces(geometry)
+  }
+
+  return {
+    start: positiveEndPiece(meshes.get(names.start) ?? missingSplitPiece(names.start)),
+    end: withoutChannelSeamFaces(meshes.get(names.end) ?? missingSplitPiece(names.end), true),
+    mid: pick(names.mid),
+    mid5Start: pick(names.mid5Start),
+    mid5End: pick(names.mid5End),
+  }
+}
+
+function missingSplitPiece(name: string): never {
+  throw new Error(`Missing split piece ${name}`)
+}
+
+function positiveEndPiece(source: BufferGeometry) {
+  const rotated = source.clone()
+  rotated.rotateZ(Math.PI)
+  const result = withoutChannelSeamFaces(rotated, true)
+  result.rotateZ(Math.PI)
+  rotated.dispose()
+  return result
+}
+
 export function collectChannelPieces(root: Object3D): ChannelPieces {
   const meshes = new Map<string, BufferGeometry>()
   root.traverse((obj) => {
@@ -84,19 +204,22 @@ export function collectChannelPieces(root: Object3D): ChannelPieces {
 
   return {
     2: {
-      endcap: pick('CCHL_1x2-Endcap'),
-      mid: pick('CCHL_1x2-Mid'),
-      mid5: pick('CCHL_1x2-Mid5'),
+      single: pick('CCHL_1x2-Endcap'),
+      endcap: withoutChannelSeamFaces(pick('CCHL_1x2-Endcap'), true),
+      mid: withoutChannelSeamFaces(pick('CCHL_1x2-Mid')),
+      mid5: withoutChannelSeamFaces(pick('CCHL_1x2-Mid5')),
     },
     3: {
-      endcap: pick('CCHL_1x3-Endcap'),
-      mid: pick('CCHL_1x3-Mid'),
-      mid5: pick('CCHL_1x3-Mid5'),
+      single: pick('CCHL_1x3-Endcap'),
+      endcap: withoutChannelSeamFaces(pick('CCHL_1x3-Endcap'), true),
+      mid: withoutChannelSeamFaces(pick('CCHL_1x3-Mid')),
+      mid5: withoutChannelSeamFaces(pick('CCHL_1x3-Mid5')),
     },
     5: {
-      endcap: pick('CCHL_1x5-Endcap'),
-      mid: pick('CCHL_1x5-Mid'),
-      mid5: pick('CCHL_1x5-Mid5'),
+      single: pick('CCHL_1x5-Endcap'),
+      endcap: withoutChannelSeamFaces(pick('CCHL_1x5-Endcap'), true),
+      mid: withoutChannelSeamFaces(pick('CCHL_1x5-Mid')),
+      mid5: withoutChannelSeamFaces(pick('CCHL_1x5-Mid5')),
     },
   }
 }

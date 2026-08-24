@@ -16,7 +16,7 @@ export type CameraState = {
 
 export const DEFAULT_CAMERA: CameraState = {
   target: [0, 0, 0],
-  position: [7.925, -7.5, 10.62],
+  position: [7.925, 7.5, 10.62],
   ortho: false,
 }
 

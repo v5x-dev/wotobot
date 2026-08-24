@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Quaternion, Vector3 } from 'three'
 import { effectiveGraph, unionConnected } from '@/model/connections'
 import {
@@ -161,7 +161,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   const [showGrid, setShowGrid] = useState(true)
   const [ortho, setOrtho] = useState(false)
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA)
-  const savedJson = useRef(serializeDocument([], DEFAULT_CAMERA, []))
+  const [savedJson, setSavedJson] = useState(() => serializeDocument([], DEFAULT_CAMERA, []))
   const fileHandle = useRef<FileSystemFileHandle | null>(null)
   const ignorePointerMiss = useRef(false)
   const partsRef = useRef(parts)
@@ -205,15 +205,17 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     placing: false,
   })
 
-  partsRef.current = parts
-  chainsRef.current = chains
-  selectedIdsRef.current = selectedIds
-  selectedChainIdRef.current = selectedChainId
-  primaryIdRef.current = primaryId
-  nextIdRef.current = nextId
-  placingPartRef.current = placingPart
-  toolRef.current = tool
-  colorRef.current = color
+  useLayoutEffect(() => {
+    partsRef.current = parts
+    chainsRef.current = chains
+    selectedIdsRef.current = selectedIds
+    selectedChainIdRef.current = selectedChainId
+    primaryIdRef.current = primaryId
+    nextIdRef.current = nextId
+    placingPartRef.current = placingPart
+    toolRef.current = tool
+    colorRef.current = color
+  }, [chains, color, nextId, parts, placingPart, primaryId, selectedChainId, selectedIds, tool])
 
   const graph = useMemo(() => effectiveGraph(parts), [parts])
   const connectedIds = useMemo(
@@ -221,7 +223,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     [selectedIds, graph],
   )
 
-  const dirty = serializeDocument(parts, camera, chains) !== savedJson.current
+  const dirty = serializeDocument(parts, camera, chains) !== savedJson
   const primary = parts.find((part) => part.instanceId === primaryId) ?? null
   const selectedChain = chains.find((chain) => chain.id === selectedChainId) ?? null
   const selectedChainLinkCount = useMemo(() => {
@@ -250,15 +252,15 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   const markSaved = useCallback(
     (nextParts: PlacedPart[], nextChains: SprocketChain[], nextCamera = camera) => {
-      savedJson.current = serializeDocument(nextParts, nextCamera, nextChains)
+      setSavedJson(serializeDocument(nextParts, nextCamera, nextChains))
     },
     [camera],
   )
 
   const confirmDiscard = useCallback(() => {
-    if (serializeDocument(partsRef.current, camera, chainsRef.current) === savedJson.current) return true
+    if (serializeDocument(partsRef.current, camera, chainsRef.current) === savedJson) return true
     return window.confirm('You have unsaved changes. Discard them?')
-  }, [camera])
+  }, [camera, savedJson])
 
   const loadParts = useCallback(
     (
@@ -808,9 +810,8 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       target,
       position: [target[0], target[1], target[2] + frontSpan * 2.5] as [number, number, number],
     }
-    setShowGrid(false)
     loadParts(nextParts, [], `${stemName(name)}.wbb`, null, camera)
-    savedJson.current = serializeDocument([], DEFAULT_CAMERA, [])
+    setSavedJson(serializeDocument([], DEFAULT_CAMERA, []))
     return true
   }, [confirmDiscard, loadParts])
 
@@ -902,8 +903,9 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     setShowHoles((value) => !value)
   }, [])
 
-  commandsRef.current = {
-    hasSelection: selectedIds.length > 0,
+  useLayoutEffect(() => {
+    commandsRef.current = {
+      hasSelection: selectedIds.length > 0,
     canDelete: selectedIds.length > 0 || selectedChainId != null,
     canPaste: clipboard.length > 0,
     newFile,
@@ -936,8 +938,9 @@ export function useRobotEditor(hotkeys: Hotkeys) {
         return next
       })
     },
-    placing: placingPart != null,
-  }
+      placing: placingPart != null,
+    }
+  })
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -1080,7 +1083,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     }
 
     function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (serializeDocument(partsRef.current, camera, chainsRef.current) === savedJson.current) return
+      if (serializeDocument(partsRef.current, camera, chainsRef.current) === savedJson) return
       event.preventDefault()
       event.returnValue = ''
     }
@@ -1093,7 +1096,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('beforeunload', onBeforeUnload)
     }
-  }, [camera, hotkeys])
+  }, [camera, hotkeys, savedJson])
 
   return {
     parts,

@@ -61,12 +61,6 @@ export function PlacementPreview({
   onRotation: (rotation: [number, number, number]) => void
 }) {
   const groupRef = useRef<Group>(null)
-  const partRef = useRef(part)
-  const partsRef = useRef(parts)
-  const flipRef = useRef(flip)
-  const rotatingRef = useRef(rotating)
-  const onPlaceRef = useRef(onPlace)
-  const onRotationRef = useRef(onRotation)
   const rotationRef = useRef<[number, number, number]>(part?.rotation ?? [0, 0, 0])
   const poseRef = useRef({
     position: [0, 0, 0] as [number, number, number],
@@ -76,29 +70,20 @@ export function PlacementPreview({
   const faceRef = useRef<Group>(null)
   const rayHitRef = useRef<Group>(null)
   const rayGeometryRef = useRef<BufferGeometry>(null)
-  const gl = useThree((state) => state.gl)
-  const camera = useThree((state) => state.camera)
   const scene = useThree((state) => state.scene)
   const raycaster = useThree((state) => state.raycaster)
 
-  partRef.current = part
-  partsRef.current = parts
-  flipRef.current = flip
-  rotatingRef.current = rotating
-  if (part) rotationRef.current = part.rotation
-
   useEffect(() => {
-    onPlaceRef.current = onPlace
-    onRotationRef.current = onRotation
-  }, [onPlace, onRotation])
+    if (part) rotationRef.current = part.rotation
+  }, [part])
 
   useFrame(({ camera: frameCamera, pointer }) => {
-    const current = partRef.current
+    const current = part
     const group = groupRef.current
     if (!current || !group) return
     raycaster.setFromCamera(pointer, frameCamera)
 
-    if (rotatingRef.current) {
+    if (rotating) {
       if (!rotateStart.current) {
         rotateStart.current = {
           x: pointer.x,
@@ -121,7 +106,7 @@ export function PlacementPreview({
       const euler = quatToEuler(next)
       group.quaternion.copy(next)
       poseRef.current.rotation = euler
-      onRotationRef.current(euler)
+      onRotation(euler)
       return
     }
     rotateStart.current = null
@@ -160,9 +145,9 @@ export function PlacementPreview({
             worldForward,
           },
           hitNormal,
-          flipRef.current,
+          flip,
         )
-        hoverPart = partsRef.current.find((placed) => placed.instanceId === hole.partId) ?? null
+        hoverPart = parts.find((placed) => placed.instanceId === hole.partId) ?? null
         hoverPoint = item.point
         break
       }
@@ -187,7 +172,7 @@ export function PlacementPreview({
       hoverPoint,
       groundPoint,
       currentRotation: rotationRef.current,
-      flip: flipRef.current,
+      flip,
     })
     group.position.set(...snapped.position)
     eulerToQuat(snapped.modifyRotation ? snapped.rotation : rotationRef.current, _quat)
@@ -218,7 +203,7 @@ export function PlacementPreview({
 
     function onPointerDown(event: PointerEvent) {
       if (event.button !== 0 || !isSceneTarget(event.target)) return
-      const current = partRef.current
+      const current = part
       if (!current) return
       pointerId = event.pointerId
       startX = event.clientX
@@ -239,8 +224,8 @@ export function PlacementPreview({
       pointerId = null
       const toPlace = pending
       pending = null
-      if (event.button !== 0 || dragged || !toPlace || rotatingRef.current) return
-      onPlaceRef.current(poseRef.current.position, poseRef.current.rotation, toPlace)
+      if (event.button !== 0 || dragged || !toPlace || rotating) return
+      onPlace(poseRef.current.position, poseRef.current.rotation, toPlace)
     }
 
     window.addEventListener('pointerdown', onPointerDown)
@@ -251,7 +236,7 @@ export function PlacementPreview({
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [camera, gl])
+  }, [onPlace, part, rotating])
 
   if (!part) return null
 

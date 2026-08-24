@@ -23,11 +23,6 @@ export function BoxSelect({
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const drag = useRef<{ x: number; y: number; holding: boolean } | null>(null)
   const holdingB = useRef(false)
-  const partsRef = useRef(parts)
-  const onSelectRef = useRef(onSelect)
-  partsRef.current = parts
-  onSelectRef.current = onSelect
-
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (matchesHotkey(event, hotkey)) holdingB.current = true
@@ -70,13 +65,13 @@ export function BoxSelect({
       const maxY = Math.max(start.y, event.clientY) - rect.top
       const ids: number[] = []
       const projected = new Vector3()
-      for (const part of partsRef.current) {
+      for (const part of parts) {
         projected.set(...part.position).project(camera)
         const sx = ((projected.x + 1) / 2) * rect.width
         const sy = ((-projected.y + 1) / 2) * rect.height
         if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) ids.push(part.instanceId)
       }
-      if (ids.length > 0) onSelectRef.current(ids)
+      if (ids.length > 0) onSelect(ids)
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -91,7 +86,7 @@ export function BoxSelect({
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [camera, enabled, gl, hotkey])
+  }, [camera, enabled, gl, hotkey, onSelect, parts])
 
   if (!box) return null
   return createPortal(

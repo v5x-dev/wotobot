@@ -29,6 +29,17 @@ Then open the printed localhost URL.
 | `npm run build`   | Type-check and build for prod |
 | `npm run preview` | Preview the production build |
 | `npm run lint`    | Lint with oxlint             |
+| `npm run test`    | Run the test suite once      |
+| `npm run check`   | Run lint, tests, and a production build |
+
+## Production build
+
+```sh
+npm ci
+npm run check
+```
+
+Deploy the generated `dist/` directory as a static site. Keep the directory structure intact because the editor loads its FBX models from `dist/protobot-models/` at runtime. The production output is about 113 MB, mostly model assets, so use a host that supports long-lived caching and compression.
 
 ## Keyboard shortcuts
 
