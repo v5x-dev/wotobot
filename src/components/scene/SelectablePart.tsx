@@ -24,6 +24,7 @@ import {
 } from 'three'
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib'
+import { AXIS_COLORS } from '@/model/colors'
 import { GRID_SNAP, ROTATION_SNAP, snap } from '@/model/grid'
 
 const SELECTED_OUTLINE = '#3EA6FF'
@@ -53,9 +54,29 @@ type CombinedControls = {
 }
 
 const HIDDEN_ROTATE_HANDLES = new Set(['E', 'XYZE'])
+const AXIS_COLOR_BY_NAME: Record<string, string> = {
+  X: AXIS_COLORS[0],
+  Y: AXIS_COLORS[1],
+  Z: AXIS_COLORS[2],
+}
 
 function asControls(controls: TransformControlsImpl | null) {
   return controls as unknown as CombinedControls | null
+}
+
+function applyAxisColors(root: Object3D) {
+  root.traverse((object) => {
+    const color = AXIS_COLOR_BY_NAME[object.name]
+    if (!color || !('material' in object)) return
+    const source = (object as Object3D & { material: Material | Material[] }).material
+    const materials = Array.isArray(source) ? source : [source]
+    for (const material of materials) {
+      if (!('color' in material) || !(material.color instanceof Color)) continue
+      material.color.set(color)
+      const baseColor = (material as Material & { _color?: Color })._color
+      if (baseColor instanceof Color) baseColor.set(color)
+    }
+  })
 }
 
 function firstVisibleHit(raycaster: Raycaster, root: Object3D, skip?: Set<string>) {
@@ -270,6 +291,8 @@ function CombinedTransformGizmo({
     const rotate = rotateRef.current
     if (!translate || !rotate) return
 
+    applyAxisColors(asControls(translate)!.gizmo.gizmo.translate)
+    applyAxisColors(asControls(rotate)!.gizmo.gizmo.rotate)
     alignFlippedArrowHeads(translate)
     const restoreRotate = hideFreeRotate(rotate)
     const dom = (events.connected as HTMLElement | undefined) ?? gl.domElement

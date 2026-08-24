@@ -972,6 +972,10 @@ export function useRobotEditor() {
     showHoles,
     showGrid,
     ortho,
+    setOrtho: (next: boolean) => {
+      setOrtho(next)
+      setCamera((current) => ({ ...current, ortho: next }))
+    },
     camera,
     setCamera,
     startPlacing,

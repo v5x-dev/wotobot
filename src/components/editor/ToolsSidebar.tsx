@@ -1,4 +1,5 @@
 import {
+  Box,
   CircleDotDashed,
   Copy,
   Group,
@@ -7,6 +8,7 @@ import {
   MousePointer2,
   Palette,
   Scan,
+  Square,
   Trash2,
   Ungroup,
   Unlink2,
@@ -30,6 +32,8 @@ export function ToolsSidebar({
   onFocus,
   showHoles,
   onToggleHoles,
+  ortho,
+  onToggleProjection,
   canGroup,
   onGroup,
   canUngroup,
@@ -46,6 +50,8 @@ export function ToolsSidebar({
   onFocus: () => void
   showHoles: boolean
   onToggleHoles: () => void
+  ortho: boolean
+  onToggleProjection: () => void
   canGroup: boolean
   onGroup: () => void
   canUngroup: boolean
@@ -141,6 +147,16 @@ export function ToolsSidebar({
         onClick={onToggleHoles}
       >
         <CircleDotDashed />
+      </Button>
+      <Button
+        variant={ortho ? 'secondary' : 'ghost'}
+        size="icon-sm"
+        aria-label={ortho ? 'Use perspective projection' : 'Use orthographic projection'}
+        aria-pressed={ortho}
+        title={`${ortho ? 'Perspective' : 'Orthographic'} (O)`}
+        onClick={onToggleProjection}
+      >
+        {ortho ? <Square /> : <Box />}
       </Button>
     </div>
   )

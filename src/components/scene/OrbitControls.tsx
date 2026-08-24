@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { OrbitControls as ThreeOrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { Camera } from 'three'
 
@@ -28,7 +28,12 @@ export function OrbitControls({
   const get = useThree((state) => state.get)
   const explCamera = camera ?? defaultCamera
   const explDomElement = (events.connected || gl.domElement) as HTMLElement
-  const controls = useMemo(() => new ThreeOrbitControls(explCamera), [explCamera])
+  const [controls] = useState(() => new ThreeOrbitControls(explCamera))
+
+  useLayoutEffect(() => {
+    controls.object = explCamera
+    controls.update()
+  }, [controls, explCamera])
 
   useFrame((_, delta) => {
     if (!controls.enabled) return

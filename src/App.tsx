@@ -1,4 +1,5 @@
 import { Canvas, useThree } from '@react-three/fiber'
+import { GizmoHelper, GizmoViewport } from '@react-three/drei'
 import { CircleHelp, File, Maximize2, Minimize2, Pencil } from 'lucide-react'
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
@@ -15,6 +16,7 @@ import { PlacementPreview } from '@/components/scene/PlacementPreview'
 import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
 import { useRobotEditor } from '@/editor/useRobotEditor'
+import { AXIS_COLORS } from '@/model/colors'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -85,6 +87,7 @@ function CameraProjection({ ortho }: { ortho: boolean }) {
   const size = useThree((state) => state.size)
   const perspRef = useRef<PerspectiveCamera | null>(null)
   const orthoRef = useRef<OrthographicCamera | null>(null)
+  const orthoHalfHeightRef = useRef(20)
 
   useLayoutEffect(() => {
     const { camera } = get()
@@ -94,7 +97,13 @@ function CameraProjection({ ortho }: { ortho: boolean }) {
 
     if (ortho) {
       const aspect = size.width / Math.max(size.height, 1)
-      const halfH = 20
+      if (camera instanceof PerspectiveCamera) {
+        const controls = get().controls as unknown as { target?: Vector3 } | undefined
+        const target = controls?.target ?? new Vector3()
+        const distance = camera.position.distanceTo(target)
+        orthoHalfHeightRef.current = distance * Math.tan((camera.fov * Math.PI) / 360)
+      }
+      const halfH = orthoHalfHeightRef.current
       const halfW = halfH * aspect
       let next = orthoRef.current
       if (!next) {
@@ -105,8 +114,9 @@ function CameraProjection({ ortho }: { ortho: boolean }) {
         next.right = halfW
         next.top = halfH
         next.bottom = -halfH
-        next.updateProjectionMatrix()
       }
+      if (camera instanceof PerspectiveCamera) next.zoom = 1
+      next.updateProjectionMatrix()
       next.position.copy(camera.position)
       next.quaternion.copy(camera.quaternion)
       next.up.copy(camera.up)
@@ -115,7 +125,14 @@ function CameraProjection({ ortho }: { ortho: boolean }) {
     }
 
     if (camera !== persp) {
+      const controls = get().controls as unknown as { target?: Vector3 } | undefined
+      const target = controls?.target ?? new Vector3()
+      const direction = camera.position.clone().sub(target)
+      const halfHeight = orthoHalfHeightRef.current / Math.max(camera.zoom, 0.0001)
+      const distance = halfHeight / Math.tan((persp.fov * Math.PI) / 360)
+      if (direction.lengthSq() > 0) direction.setLength(distance)
       persp.position.copy(camera.position)
+      if (direction.lengthSq() > 0) persp.position.copy(target).add(direction)
       persp.quaternion.copy(camera.quaternion)
       persp.up.copy(camera.up)
       persp.updateProjectionMatrix()
@@ -289,7 +306,7 @@ function App() {
             </Button>
           </div>
         </header>
-        <SidebarProvider open={false} className="relative min-h-0 flex-1 overflow-hidden">
+        <SidebarProvider defaultOpen={false} className="relative min-h-0 flex-1 overflow-hidden">
           <SidebarInset className="relative h-full min-h-0 min-w-0 overflow-hidden p-0">
             <div data-slot="scene-hud">
               <ToolsSidebar
@@ -301,6 +318,8 @@ function App() {
                 onFocus={() => setFocusToken((value) => value + 1)}
                 showHoles={editor.showHoles}
                 onToggleHoles={editor.toggleHoles}
+                ortho={editor.ortho}
+                onToggleProjection={() => editor.setOrtho(!editor.ortho)}
                 canGroup={editor.canGroup}
                 onGroup={editor.groupSelected}
                 canUngroup={editor.canUngroup}
@@ -336,7 +355,7 @@ function App() {
               </div>
               <div
                 ref={fpsLabel}
-                className="absolute top-2 right-2 select-none font-mono text-xs tabular-nums text-white/70"
+                className="absolute top-36 right-3 select-none font-mono text-xs tabular-nums text-white/70"
               >
                 0 FPS
               </div>
@@ -397,6 +416,13 @@ function App() {
                 maxDistance={1000}
                 mouseButtons={{ LEFT: undefined, MIDDLE: MOUSE.PAN, RIGHT: MOUSE.ROTATE }}
               />
+              <GizmoHelper alignment="top-right" margin={[76, 76]}>
+                <GizmoViewport
+                  axisColors={AXIS_COLORS}
+                  labels={['', '', '']}
+                  axisHeadScale={0.9}
+                />
+              </GizmoHelper>
               <FocusCamera point={editor.primary?.position ?? null} token={focusToken} />
               <BoxSelect enabled={!editor.placingPart} parts={editor.parts} onSelect={boxSelect} />
               <FpsCounter target={fpsLabel} />

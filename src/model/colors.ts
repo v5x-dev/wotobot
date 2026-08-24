@@ -1,5 +1,7 @@
 export const DEFAULT_COLOR: [number, number, number] = [0.94902, 0.94902, 0.94902]
 
+export const AXIS_COLORS: [string, string, string] = ['#ef3340', '#7cb518', '#1484d6']
+
 export const COLOR_PRESETS: { name: string; rgb: [number, number, number] }[] = [
   { name: 'Default', rgb: DEFAULT_COLOR },
   { name: 'Gray', rgb: [0.39623, 0.37941, 0.37941] },

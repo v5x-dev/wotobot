@@ -24,6 +24,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { PARTS } from '@/model/partsCatalog'
@@ -207,6 +208,7 @@ export function AddSidebar({
           {error ? <p className="text-destructive text-xs">{error}</p> : null}
         </PopoverContent>
       </Popover>
+      <SidebarRail />
     </Sidebar>
   )
 }

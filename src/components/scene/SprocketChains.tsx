@@ -1,53 +1,105 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import {
+  CylinderGeometry,
+  ExtrudeGeometry,
   Matrix4,
   MeshStandardMaterial,
+  Path,
   Quaternion,
+  Shape,
   Vector3,
   type InstancedMesh,
 } from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   chainGeometry,
   resampleClosedPath,
+  type ChainKind,
   type SprocketChain,
 } from '@/model/chains'
 import type { PlacedPart } from '@/model/parts'
 
-const plateMaterial = new MeshStandardMaterial({
+const chainMaterial = new MeshStandardMaterial({
   color: '#F2F2F2',
-  metalness: 0.72,
-  roughness: 0.48,
+  metalness: 0.02,
+  roughness: 0.72,
 })
 
-const rollerMaterial = new MeshStandardMaterial({
-  color: '#F2F2F2',
-  metalness: 0.8,
-  roughness: 0.36,
-})
+/** Reduced mesh of one VEX acetal master link. Dimensions are inches. */
+function makeLinkGeometry(kind: ChainKind) {
+  const highStrength = kind === 'high-strength'
+  const pitch = highStrength ? 0.385 : 0.148
+  const length = pitch * 1.08
+  const railHeight = highStrength ? 0.16 : 0.066
+  const width = highStrength ? 0.57 : 0.22
+  const holeRadius = highStrength ? 0.067 : 0.027
+  const railThickness = highStrength ? 0.075 : 0.03
+  const endRadius = railHeight / 2
+  const halfStraight = length / 2 - endRadius
 
-const highStrengthPlateMaterial = new MeshStandardMaterial({
-  color: '#F2F2F2',
-  metalness: 0.05,
-  roughness: 0.76,
-})
+  const shape = new Shape()
+  shape.moveTo(-halfStraight, -endRadius)
+  shape.lineTo(halfStraight, -endRadius)
+  shape.absarc(halfStraight, 0, endRadius, -Math.PI / 2, Math.PI / 2, false)
+  shape.lineTo(-halfStraight, endRadius)
+  shape.absarc(-halfStraight, 0, endRadius, Math.PI / 2, Math.PI * 1.5, false)
 
-const highStrengthPinMaterial = new MeshStandardMaterial({
-  color: '#F2F2F2',
-  metalness: 0.22,
-  roughness: 0.65,
-})
+  for (const x of [-pitch / 2, pitch / 2]) {
+    const hole = new Path()
+    hole.absarc(x, 0, holeRadius, 0, Math.PI * 2, true)
+    shape.holes.push(hole)
+  }
+
+  const bevel = highStrength ? 0.012 : 0.005
+  const rail = new ExtrudeGeometry(shape, {
+    depth: railThickness,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    bevelSize: bevel,
+    bevelThickness: bevel,
+    curveSegments: 12,
+    steps: 1,
+  })
+  const railOffset = width / 2 - railThickness / 2
+  const leftRail = rail.clone().translate(0, 0, -railOffset - railThickness / 2)
+  const rightRail = rail.clone().translate(0, 0, railOffset - railThickness / 2)
+
+  // The hinge roller joins the two side arms. The center stays open for sprocket teeth.
+  const pin = new CylinderGeometry(
+    holeRadius * 0.72,
+    holeRadius * 0.72,
+    width,
+    12,
+  )
+  pin.rotateX(Math.PI / 2)
+  pin.translate(pitch / 2, 0, 0)
+
+  const parts = [leftRail, rightRail, pin].map((part) =>
+    part.index ? part.toNonIndexed() : part.clone(),
+  )
+  const geometry = mergeGeometries(parts)
+  if (!geometry) throw new Error('Unable to build chain link geometry.')
+  geometry.computeVertexNormals()
+  rail.dispose()
+  leftRail.dispose()
+  rightRail.dispose()
+  pin.dispose()
+  parts.forEach((part) => part.dispose())
+  return geometry
+}
+
+const standardLinkGeometry = makeLinkGeometry('standard')
+const highStrengthLinkGeometry = makeLinkGeometry('high-strength')
 
 const _axis = new Vector3()
 const _current = new Vector3()
 const _next = new Vector3()
+const _midpoint = new Vector3()
 const _tangent = new Vector3()
 const _side = new Vector3()
-const _midpoint = new Vector3()
-const _position = new Vector3()
-const _scale = new Vector3()
 const _rotation = new Quaternion()
 const _basis = new Matrix4()
-const _up = new Vector3(0, 1, 0)
+const _scale = new Vector3(1, 1, 1)
 
 function makeChainMatrices(a: PlacedPart, b: PlacedPart) {
   const geometry = chainGeometry(a, b)
@@ -56,95 +108,51 @@ function makeChainMatrices(a: PlacedPart, b: PlacedPart) {
   if (points.length < 4) return null
 
   _axis.set(...geometry.axis).normalize()
-  const rollerRotation = new Quaternion().setFromUnitVectors(_up, _axis)
-  const rollerMatrices: Matrix4[] = []
-  const plateMatrices: Matrix4[] = []
-  const linkScale = geometry.pitch / 0.25
-  const widthScale = Math.sqrt(linkScale)
-  const highStrength = geometry.kind === 'high-strength'
-  const plateOffset = (highStrength ? 0.105 : 0.0675) * widthScale
-  const plateWidth = (highStrength ? 0.15 : 0.105) * linkScale
-  const plateThickness = (highStrength ? 0.055 : 0.035) * widthScale
-  const endGap = (highStrength ? 0.09 : 0.065) * linkScale
+  const matrices: Matrix4[] = []
 
   for (let index = 0; index < points.length; index += 1) {
     _current.set(...points[index])
     _next.set(...points[(index + 1) % points.length])
+
+    // Path samples are hinge centers. Place the solid link between adjacent hinges.
     _tangent.copy(_next).sub(_current)
-    const length = _tangent.length()
-    if (length < 1e-6) continue
-    _tangent.multiplyScalar(1 / length)
+    if (_tangent.lengthSq() < 1e-8) continue
+    _tangent.normalize()
+    _midpoint.copy(_current).add(_next).multiplyScalar(0.5)
     _side.copy(_axis).cross(_tangent).normalize()
     _basis.makeBasis(_tangent, _side, _axis)
     _rotation.setFromRotationMatrix(_basis)
-    _midpoint.copy(_current).add(_next).multiplyScalar(0.5)
-
-    rollerMatrices.push(
-      new Matrix4().compose(_current.clone(), rollerRotation, new Vector3(1, 1, 1)),
-    )
-
-    for (const offset of [-plateOffset, plateOffset]) {
-      _position.copy(_midpoint).addScaledVector(_axis, offset)
-      _scale.set(Math.max(0.025, length - endGap), plateWidth, plateThickness)
-      plateMatrices.push(
-        new Matrix4().compose(_position.clone(), _rotation.clone(), _scale.clone()),
-      )
-    }
+    matrices.push(new Matrix4().compose(_midpoint.clone(), _rotation.clone(), _scale))
   }
 
-  return {
-    rollerMatrices,
-    plateMatrices,
-    rollerRadius: 0.055 * linkScale,
-    rollerLength: (highStrength ? 0.25 : 0.17) * widthScale,
-    highStrength,
-  }
+  return { kind: geometry.kind, matrices }
 }
 
 function ChainMesh({ a, b }: { a: PlacedPart; b: PlacedPart }) {
-  const rollersRef = useRef<InstancedMesh>(null)
-  const platesRef = useRef<InstancedMesh>(null)
-  const matrices = useMemo(
-    () => makeChainMatrices(a, b),
-    [a, b],
-  )
+  const linksRef = useRef<InstancedMesh>(null)
+  const chain = useMemo(() => makeChainMatrices(a, b), [a, b])
 
   useLayoutEffect(() => {
-    if (!matrices) return
-    const rollers = rollersRef.current
-    const plates = platesRef.current
-    if (!rollers || !plates) return
-    matrices.rollerMatrices.forEach((matrix, index) => rollers.setMatrixAt(index, matrix))
-    matrices.plateMatrices.forEach((matrix, index) => plates.setMatrixAt(index, matrix))
-    rollers.instanceMatrix.needsUpdate = true
-    plates.instanceMatrix.needsUpdate = true
-  }, [matrices])
+    const links = linksRef.current
+    if (!chain || !links) return
+    chain.matrices.forEach((matrix, index) => links.setMatrixAt(index, matrix))
+    links.instanceMatrix.needsUpdate = true
+    links.computeBoundingSphere()
+  }, [chain])
 
-  if (!matrices) return null
+  if (!chain) return null
+  const linkGeometry = chain.kind === 'high-strength'
+    ? highStrengthLinkGeometry
+    : standardLinkGeometry
 
   return (
-    <group>
-      <instancedMesh
-        ref={rollersRef}
-        args={[undefined, undefined, matrices.rollerMatrices.length]}
-        material={matrices.highStrength ? highStrengthPinMaterial : rollerMaterial}
-        frustumCulled={false}
-        raycast={() => {}}
-      >
-        <cylinderGeometry
-          args={[matrices.rollerRadius, matrices.rollerRadius, matrices.rollerLength, 12]}
-        />
-      </instancedMesh>
-      <instancedMesh
-        ref={platesRef}
-        args={[undefined, undefined, matrices.plateMatrices.length]}
-        material={matrices.highStrength ? highStrengthPlateMaterial : plateMaterial}
-        frustumCulled={false}
-        raycast={() => {}}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-      </instancedMesh>
-    </group>
+    <instancedMesh
+      ref={linksRef}
+      args={[linkGeometry, undefined, chain.matrices.length]}
+      material={chainMaterial}
+      frustumCulled={false}
+      raycast={() => {}}
+    />
   )
 }
 

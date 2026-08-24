@@ -142,6 +142,10 @@ export function PlacementPreview({
         const hitNormal = item.face
           ? _hitNormal.copy(item.face.normal).transformDirection(item.object.matrixWorld)
           : hole.parent?.getWorldDirection(_hitNormal) ?? _hitNormal.set(0, 0, 1)
+        // Double-sided hole colliders report the triangle's front normal even
+        // when the ray hits their back. Orient it toward the ray origin so the
+        // selected face follows the side the pointer is actually on.
+        if (hitNormal.dot(raycaster.ray.direction) > 0) hitNormal.negate()
         const worldForward = hole.parent
           ? hole.parent.getWorldDirection(new Vector3())
           : new Vector3(0, 0, 1)

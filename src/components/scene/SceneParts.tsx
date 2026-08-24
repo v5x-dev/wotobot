@@ -348,6 +348,7 @@ function SprocketPart({
       if (!mesh.isMesh) return
       const apply = (material: Material) => {
         if (!(material instanceof MeshStandardMaterial)) return
+        if (part.param1 === 'High Strength' && !part.color) material.color.set('#F2F2F2')
         material.side = FrontSide
         material.metalness = 0.15
         material.roughness = 0.55
@@ -356,7 +357,7 @@ function SprocketPart({
       else apply(mesh.material)
     })
     return clone
-  }, [fbx, isPreview, part.color, variant])
+  }, [fbx, isPreview, part.color, part.param1, variant])
 
   if (!variant?.fbx || !object) return <MissingPart />
 
