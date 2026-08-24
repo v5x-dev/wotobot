@@ -23,6 +23,7 @@ import {
   type Object3D,
 } from 'three'
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { computeBoundsTree } from 'three-mesh-bvh'
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib'
 import { AXIS_COLORS } from '@/model/colors'
 import { GRID_SNAP, ROTATION_SNAP, snap } from '@/model/grid'
@@ -218,6 +219,14 @@ function cloneWithStencil(material: Material) {
   clone.stencilFail = KeepStencilOp
   clone.stencilZFail = KeepStencilOp
   clone.stencilZPass = ReplaceStencilOp
+  return clone
+}
+
+function cloneWithConnectedTint(material: Material) {
+  const clone = material.clone()
+  if ('color' in clone && clone.color instanceof Color) {
+    clone.color.lerp(new Color(CONNECTED_OUTLINE), 0.28)
+  }
   return clone
 }
 
@@ -454,11 +463,41 @@ export function SelectablePart({
 
   useLayoutEffect(() => {
     const group = groupRef.current
+    if (!group) return
+    group.traverse((object) => {
+      if (!isPartMesh(object)) return
+      const geometry = object.geometry as BufferGeometry & { boundsTree?: unknown }
+      if (!geometry.boundsTree) computeBoundsTree.call(geometry)
+    })
+  }, [children])
+
+  useLayoutEffect(() => {
+    const group = groupRef.current
     if (!selected || !group) return
+
+    if (outline === 'connected') {
+      const restored: Array<{ mesh: Mesh; material: Material | Material[] }> = []
+      const tintClones = new Map<Material, Material>()
+      group.traverse((object) => {
+        if (!isPartMesh(object)) return
+        restored.push({ mesh: object, material: object.material })
+        withEachMaterial(object, (material) => {
+          const existing = tintClones.get(material)
+          if (existing) return existing
+          const clone = cloneWithConnectedTint(material)
+          tintClones.set(material, clone)
+          return clone
+        })
+      })
+      return () => {
+        for (const { mesh, material } of restored) mesh.material = material
+        for (const clone of tintClones.values()) clone.dispose()
+      }
+    }
 
     const outlineMaterial = new ShaderMaterial({
       uniforms: {
-        uColor: { value: new Color(outline === 'connected' ? CONNECTED_OUTLINE : SELECTED_OUTLINE) },
+        uColor: { value: new Color(SELECTED_OUTLINE) },
         uThickness: { value: OUTLINE_THICKNESS },
         uResolution: { value: new Vector2(1, 1) },
       },

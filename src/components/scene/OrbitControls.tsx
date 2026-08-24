@@ -47,6 +47,7 @@ export function OrbitControls({
   const events = useThree((state) => state.events)
   const set = useThree((state) => state.set)
   const get = useThree((state) => state.get)
+  const invalidate = useThree((state) => state.invalidate)
   const explCamera = camera ?? defaultCamera
   const explDomElement = (events.connected || gl.domElement) as HTMLElement
   const [controls] = useState(() => new ThreeOrbitControls(explCamera))
@@ -63,6 +64,12 @@ export function OrbitControls({
     controls.connect(explDomElement)
     return () => controls.dispose()
   }, [controls, explDomElement])
+
+  useEffect(() => {
+    const renderNextFrame = () => invalidate()
+    controls.addEventListener('change', renderNextFrame)
+    return () => controls.removeEventListener('change', renderNextFrame)
+  }, [controls, invalidate])
 
   useEffect(() => {
     if (!onEnd) return

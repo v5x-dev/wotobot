@@ -181,7 +181,7 @@ function App() {
   const [focusToken, setFocusToken] = useState(0)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
-  const modelTriangleList = useRef<HTMLDivElement>(null)
+  const drawCallLabel = useRef<HTMLDivElement>(null)
   const importAbort = useRef<AbortController | null>(null)
 
   const setFpsLabel = useCallback((label: string) => {
@@ -190,17 +190,9 @@ function App() {
   const setTriangleLabel = useCallback((label: string) => {
     if (triangleLabel.current) triangleLabel.current.textContent = label
   }, [])
-  const setModelTriangleLabels = useCallback((labels: string[]) => {
-    if (!modelTriangleList.current) return
-    modelTriangleList.current.replaceChildren(
-      ...labels.map((label) => {
-        const row = document.createElement('div')
-        row.textContent = label
-        return row
-      }),
-    )
+  const setDrawCallLabel = useCallback((label: string) => {
+    if (drawCallLabel.current) drawCallLabel.current.textContent = label
   }, [])
-
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
     document.addEventListener('fullscreenchange', onChange)
@@ -465,20 +457,21 @@ function App() {
                   <ChainBadge linkCount={editor.selectedChainLinkCount} />
                 ) : null}
               </div>
-              <div className="pointer-events-none absolute top-36 right-3 flex select-none flex-col items-end font-mono text-xs tabular-nums text-white/70">
+              <div className="pointer-events-none absolute top-36 right-3 z-20 flex select-none flex-col items-end font-mono text-xs tabular-nums text-white/70">
                 <div ref={fpsLabel}>0 FPS</div>
                 <div>
                   {editor.parts.length} {editor.parts.length === 1 ? 'model' : 'models'}
                 </div>
                 <div ref={triangleLabel}>0 triangles</div>
-                <div ref={modelTriangleList} className="mt-1 text-right" />
+                <div ref={drawCallLabel}>0 draw calls</div>
               </div>
             </div>
             <Canvas
               data-slot="scene"
               className={`h-full w-full bg-background${editor.placingPart ? ' cursor-crosshair' : ''}`}
               camera={{ position: CAMERA_POSITION, fov: 50, near: 0.3, far: 2000 }}
-              frameloop="always"
+              frameloop="demand"
+              dpr={[1, 1.25]}
               gl={{ alpha: true, stencil: true }}
               onPointerMissed={editor.onPointerMissed}
               onContextMenu={(event) => event.preventDefault()}
@@ -560,8 +553,7 @@ function App() {
               <FpsCounter
                 onFpsChange={setFpsLabel}
                 onTriangleChange={setTriangleLabel}
-                onModelTrianglesChange={setModelTriangleLabels}
-                parts={editor.parts}
+                onDrawCallChange={setDrawCallLabel}
               />
             </Canvas>
           </SidebarInset>

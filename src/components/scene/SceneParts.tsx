@@ -31,6 +31,7 @@ import {
 } from '@/model/chains'
 import { eulerToQuat } from '@/model/math'
 import { modelScaleFor } from '@/model/modelScale'
+import { DEFAULT_COLOR } from '@/model/colors'
 import {
   channelProfileFromSize,
   findPart,
@@ -47,6 +48,7 @@ const ANGLE_CATALOG_FBX = modelUrl('Structure/Angles.fbx')
 const ANGLE_SPLIT_FBX = modelUrl('Structure/Angles (split).fbx')
 const U_CHANNEL_SPLIT_FBX = modelUrl('Structure/U-Channels (split).fbx')
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
+const DEFAULT_PART_COLOR = DEFAULT_COLOR
 
 const aluminum = new MeshStandardMaterial({
   color: '#F2F2F2',
@@ -173,13 +175,12 @@ function prepareFbxClone(
           : (finish === 'model-preview' ? makePreviewMaterial : toPartMaterial)(mesh.material)
         : surfaceMaterial(finish)
     if (finish.endsWith('-preview')) mesh.raycast = noopRaycast
-    if (color) {
-      const apply = (material: Material) => {
-        if (material instanceof MeshStandardMaterial) material.color.setRGB(color[0], color[1], color[2])
-      }
-      if (Array.isArray(mesh.material)) mesh.material.forEach(apply)
-      else apply(mesh.material)
+    const partColor = color ?? DEFAULT_PART_COLOR
+    const apply = (material: Material) => {
+      if (material instanceof MeshStandardMaterial) material.color.setRGB(...partColor)
     }
+    if (Array.isArray(mesh.material)) mesh.material.forEach(apply)
+    else apply(mesh.material)
   })
   return clone
 }
@@ -396,7 +397,6 @@ function SprocketPart({
       if (!mesh.isMesh) return
       const apply = (material: Material) => {
         if (!(material instanceof MeshStandardMaterial)) return
-        if (part.param1 === 'High Strength' && !part.color) material.color.set('#F2F2F2')
         material.side = FrontSide
         material.metalness = 0.15
         material.roughness = 0.55
@@ -405,7 +405,7 @@ function SprocketPart({
       else apply(mesh.material)
     })
     return clone
-  }, [fbx, isPreview, part.color, part.param1, variant])
+  }, [fbx, isPreview, part.color, variant])
 
   if (!variant?.fbx || !object) return <MissingPart />
 
@@ -445,8 +445,12 @@ function PolycarbonatePart({ part, isPreview }: { part: PlacedPart; isPreview: b
     return result
   }, [param1, param2, spec])
   const material = useMemo(
-    () => isPreview ? makePreviewMaterial(polycarbonate) : polycarbonate,
-    [isPreview],
+    () => {
+      const result = (isPreview ? makePreviewMaterial(polycarbonate) : polycarbonate.clone())
+      result.color.setRGB(...(part.color ?? DEFAULT_PART_COLOR))
+      return result
+    },
+    [isPreview, part.color],
   )
   return <mesh geometry={geometry} material={material} {...(isPreview ? { raycast: noopRaycast } : {})} />
 }
@@ -767,16 +771,14 @@ export function SceneParts({
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
           >
-            <group userData={{ debugModelInstanceId: part.instanceId }}>
-              <Suspense>
-                <PlacedPartMesh
-                  part={part}
-                  showHoles={showHoles}
-                  detectHoles={detectHoles}
-                  sprocketPhase={sprocketPhases.get(part.instanceId)}
-                />
-              </Suspense>
-            </group>
+            <Suspense>
+              <PlacedPartMesh
+                part={part}
+                showHoles={showHoles}
+                detectHoles={detectHoles}
+                sprocketPhase={sprocketPhases.get(part.instanceId)}
+              />
+            </Suspense>
           </SelectablePart>
         )
       })}

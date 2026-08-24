@@ -135,13 +135,6 @@ function unitScale(units: string) {
   return 1
 }
 
-function importedPartColor(definition: PartDefinition): [number, number, number] | null {
-  if (definition.id === 'GEAR' || definition.id === 'SPKT' || definition.id === 'FWHL') {
-    return [0.68, 0.015, 0.025]
-  }
-  return null
-}
-
 function editorPosition(position: [number, number, number], scale: number): [number, number, number] {
   const converted = position.map((value) => value * scale)
   return converted.map((value) => Math.round(value * 1e9) / 1e9) as [number, number, number]
@@ -256,7 +249,7 @@ export function stepMetadataToParts(metadata: MetadataInput): StepPartImport {
       param2,
       position: transform.position,
       rotation: transform.rotation,
-      color: importedPartColor(definition),
+      color: null,
     })
   }
 

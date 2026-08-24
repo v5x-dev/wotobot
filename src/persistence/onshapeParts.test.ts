@@ -35,7 +35,7 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[1].rotation[0]).toBeCloseTo(0)
     expect(result.parts[1].rotation[1]).toBeCloseTo(0)
     expect(result.parts[1].rotation[2]).toBeCloseTo(0)
-    expect(result.parts[2]).toMatchObject({ key: 'Motion:GEAR:Gear', param1: 'High Strength v2', param2: '60T', color: [0.68, 0.015, 0.025] })
+    expect(result.parts[2]).toMatchObject({ key: 'Motion:GEAR:Gear', param1: 'High Strength v2', param2: '60T', color: null })
     expect(result.parts[3]).toMatchObject({ key: 'Structure:ANGL:Angle', param1: '1x1', param2: '24' })
     expect(result.parts[4]).toMatchObject({ key: 'Motion:OMNI:Omni Wheel', param1: 'V2', param2: '2.75in' })
     expect(result.parts[5]).toMatchObject({ key: 'Electronics:SNSR:Sensor', param1: 'Rotation', param2: 'V5' })
