@@ -14,6 +14,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   chainGeometry,
   resampleClosedPath,
+  sprocketPitchRadius,
+  sprocketRotationPhase,
   type ChainKind,
   type SprocketChain,
 } from '@/model/chains'
@@ -24,6 +26,12 @@ const chainMaterial = new MeshStandardMaterial({
   metalness: 0.02,
   roughness: 0.72,
 })
+
+const selectedChainMaterial = chainMaterial.clone()
+selectedChainMaterial.color.set('#3EA6FF')
+selectedChainMaterial.emissive.set('#123c5c')
+
+function noopRaycast() {}
 
 /** Reduced mesh of one VEX acetal master link. Dimensions are inches. */
 function makeLinkGeometry(kind: ChainKind) {
@@ -104,7 +112,8 @@ const _scale = new Vector3(1, 1, 1)
 function makeChainMatrices(a: PlacedPart, b: PlacedPart) {
   const geometry = chainGeometry(a, b)
   if (!geometry) return null
-  const points = resampleClosedPath(geometry.points, geometry.pitch)
+  const travel = -sprocketPitchRadius(a) * sprocketRotationPhase(a)
+  const points = resampleClosedPath(geometry.points, geometry.pitch, travel)
   if (points.length < 4) return null
 
   _axis.set(...geometry.axis).normalize()
@@ -128,7 +137,19 @@ function makeChainMatrices(a: PlacedPart, b: PlacedPart) {
   return { kind: geometry.kind, matrices }
 }
 
-function ChainMesh({ a, b }: { a: PlacedPart; b: PlacedPart }) {
+function ChainMesh({
+  a,
+  b,
+  selected,
+  interactive,
+  onSelect,
+}: {
+  a: PlacedPart
+  b: PlacedPart
+  selected: boolean
+  interactive: boolean
+  onSelect: () => void
+}) {
   const linksRef = useRef<InstancedMesh>(null)
   const chain = useMemo(() => makeChainMatrices(a, b), [a, b])
 
@@ -149,9 +170,14 @@ function ChainMesh({ a, b }: { a: PlacedPart; b: PlacedPart }) {
     <instancedMesh
       ref={linksRef}
       args={[linkGeometry, undefined, chain.matrices.length]}
-      material={chainMaterial}
+      material={selected ? selectedChainMaterial : chainMaterial}
       frustumCulled={false}
-      raycast={() => {}}
+      raycast={interactive ? undefined : noopRaycast}
+      onPointerDown={(event) => {
+        if (!interactive || event.button !== 0) return
+        event.stopPropagation()
+        onSelect()
+      }}
     />
   )
 }
@@ -159,9 +185,15 @@ function ChainMesh({ a, b }: { a: PlacedPart; b: PlacedPart }) {
 export function SprocketChains({
   parts,
   chains,
+  selectedChainId,
+  interactive = true,
+  onSelect,
 }: {
   parts: PlacedPart[]
   chains: SprocketChain[]
+  selectedChainId: number | null
+  interactive?: boolean
+  onSelect: (id: number) => void
 }) {
   const partById = useMemo(
     () => new Map(parts.map((part) => [part.instanceId, part])),
@@ -173,7 +205,16 @@ export function SprocketChains({
       {chains.map((chain) => {
         const a = partById.get(chain.sprocketAId)
         const b = partById.get(chain.sprocketBId)
-        return a && b ? <ChainMesh key={chain.id} a={a} b={b} /> : null
+        return a && b ? (
+          <ChainMesh
+            key={chain.id}
+            a={a}
+            b={b}
+            selected={chain.id === selectedChainId}
+            interactive={interactive}
+            onSelect={() => onSelect(chain.id)}
+          />
+        ) : null
       })}
     </>
   )

@@ -28,6 +28,7 @@ export function ToolsSidebar({
   tool,
   onTool,
   hasSelection,
+  canDelete,
   onDuplicate,
   onDelete,
   onFocus,
@@ -47,6 +48,7 @@ export function ToolsSidebar({
   tool: EditorTool
   onTool: (tool: EditorTool) => void
   hasSelection: boolean
+  canDelete: boolean
   onDuplicate: () => void
   onDelete: () => void
   onFocus: () => void
@@ -104,7 +106,7 @@ export function ToolsSidebar({
         size="icon-sm"
         aria-label="Delete"
         title="Delete"
-        disabled={!hasSelection}
+        disabled={!canDelete}
         onClick={onDelete}
       >
         <Trash2 />

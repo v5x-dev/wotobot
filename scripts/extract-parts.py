@@ -251,6 +251,10 @@ for prefab in sorted(PREFABS.rglob("*.prefab")):
 
     if generator_kind == "shaft":
         variants = []
+        shaft_mesh_names = {
+            "Normal": "SHFT_1in",
+            "High Strength": "HSFT_1in",
+        }
         for label, field_name in (("Normal", "normalShaftInch"), ("High Strength", "hsShaftInch")):
             m = re.search(rf"{field_name}: \{{fileID: (-?\d+)\}}", generator["body"])
             if not m:
@@ -259,7 +263,7 @@ for prefab in sorted(PREFABS.rglob("*.prefab")):
             target = tid if tid in go_by_id else gameobject_id(by_id.get(tid, {}).get("body", ""))
             meshf = next((c for c in components_by_go.get(target or "", []) if c["class_id"] == 33), None)
             fbx = None
-            mesh_name = go_by_id.get(target) or label
+            mesh_name = shaft_mesh_names[label]
             if meshf:
                 _, mg = mesh_ref(meshf["body"])
                 fbx = guid_to_fbx.get(mg)

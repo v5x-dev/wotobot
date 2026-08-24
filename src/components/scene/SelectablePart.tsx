@@ -272,11 +272,13 @@ function CombinedTransformGizmo({
   gizmoPickRef,
   onMouseDown,
   onMouseUp,
+  onChange,
 }: {
   object: RefObject<Object3D>
   gizmoPickRef: { current: boolean }
   onMouseDown: () => void
   onMouseUp: () => void
+  onChange: () => void
 }) {
   const translateRef = useRef<TransformControlsImpl>(null)
   const rotateRef = useRef<TransformControlsImpl>(null)
@@ -372,6 +374,7 @@ function CombinedTransformGizmo({
           onMouseDown()
         }}
         onMouseUp={onMouseUp}
+        onObjectChange={onChange}
       />
       <TransformControls
         ref={rotateRef}
@@ -385,6 +388,7 @@ function CombinedTransformGizmo({
           onMouseDown()
         }}
         onMouseUp={onMouseUp}
+        onObjectChange={onChange}
       />
     </>
   )
@@ -400,6 +404,7 @@ type Props = {
   rotation: [number, number, number]
   onSelect: (additive: boolean) => void
   onTransform: (position: [number, number, number], rotation: [number, number, number]) => void
+  onTransformLive: (position: [number, number, number], rotation: [number, number, number]) => void
   onMoveStart?: () => void
   onMoveEnd?: () => void
   children: ReactNode
@@ -423,6 +428,7 @@ export function SelectablePart({
   rotation,
   onSelect,
   onTransform,
+  onTransformLive,
   onMoveStart,
   onMoveEnd,
   children,
@@ -606,6 +612,13 @@ export function SelectablePart({
             movingRef.current = false
             setOrbitEnabled(orbitControls, true)
             onMoveEnd?.()
+          }}
+          onChange={() => {
+            if (dragSourceRef.current !== 'gizmo') return
+            const group = groupRef.current
+            if (!group) return
+            const next = readTransform(group)
+            onTransformLive(next.position, next.rotation)
           }}
         />
       )}

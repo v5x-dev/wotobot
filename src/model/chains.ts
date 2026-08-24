@@ -56,6 +56,18 @@ export function sprocketChainKind(part: PlacedPart): ChainKind {
   return part.param1 === 'High Strength' ? 'high-strength' : 'standard'
 }
 
+export function sprocketRotationPhase(part: PlacedPart) {
+  const rotation = eulerToQuat(part.rotation, new Quaternion())
+  const localZ = new Vector3(0, 0, 1)
+  const axis = localZ.clone().applyQuaternion(rotation).normalize()
+  const axisAlignment = new Quaternion().setFromUnitVectors(localZ, axis)
+  const roll = axisAlignment.invert().multiply(rotation).normalize()
+  let angle = 2 * Math.atan2(roll.z, roll.w)
+  if (angle > Math.PI) angle -= Math.PI * 2
+  if (angle < -Math.PI) angle += Math.PI * 2
+  return angle
+}
+
 export function nextChainId(chains: SprocketChain[]) {
   return chains.reduce((max, chain) => Math.max(max, chain.id), 0) + 1
 }
@@ -65,6 +77,25 @@ export function sameChainPair(chain: SprocketChain, aId: number, bId: number) {
     (chain.sprocketAId === aId && chain.sprocketBId === bId) ||
     (chain.sprocketAId === bId && chain.sprocketBId === aId)
   )
+}
+
+export function chainedSprocketIds(chains: SprocketChain[], sprocketId: number) {
+  const connected = new Set<number>([sprocketId])
+  const pending = [sprocketId]
+
+  while (pending.length > 0) {
+    const current = pending.pop()!
+    for (const chain of chains) {
+      let next: number | null = null
+      if (chain.sprocketAId === current) next = chain.sprocketBId
+      else if (chain.sprocketBId === current) next = chain.sprocketAId
+      if (next == null || connected.has(next)) continue
+      connected.add(next)
+      pending.push(next)
+    }
+  }
+
+  return connected
 }
 
 export function chainSelection(
@@ -211,7 +242,11 @@ export function chainGeometry(a: PlacedPart, b: PlacedPart): ChainGeometry | nul
   }
 }
 
-export function resampleClosedPath(points: [number, number, number][], spacing: number) {
+export function resampleClosedPath(
+  points: [number, number, number][],
+  spacing: number,
+  offset = 0,
+) {
   if (points.length < 2) return points
   const vectors = points.map((point) => new Vector3(...point))
   const cumulative = [0]
@@ -223,9 +258,9 @@ export function resampleClosedPath(points: [number, number, number][], spacing: 
   const count = Math.max(4, Math.round(total / spacing))
   const actualSpacing = total / count
   const result: [number, number, number][] = []
-  let segment = 0
   for (let index = 0; index < count; index += 1) {
-    const distance = index * actualSpacing
+    const distance = ((index * actualSpacing + offset) % total + total) % total
+    let segment = 0
     while (segment + 1 < cumulative.length && cumulative[segment + 1] < distance) segment += 1
     const start = vectors[segment % vectors.length]
     const end = vectors[(segment + 1) % vectors.length]
@@ -235,4 +270,10 @@ export function resampleClosedPath(points: [number, number, number][], spacing: 
     result.push([_point.x, _point.y, _point.z])
   }
   return result
+}
+
+export function chainLinkCount(a: PlacedPart, b: PlacedPart) {
+  const geometry = chainGeometry(a, b)
+  if (!geometry) return 0
+  return resampleClosedPath(geometry.points, geometry.pitch).length
 }

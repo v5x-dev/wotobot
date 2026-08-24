@@ -583,6 +583,7 @@ export function PlacedPartMesh({
 function chainSprocketPhases(parts: PlacedPart[], chains: SprocketChain[]) {
   const partById = new Map(parts.map((part) => [part.instanceId, part]))
   const phases = new Map<number, number>()
+  const localZ = new Vector3(0, 0, 1)
 
   for (const chain of chains) {
     const a = partById.get(chain.sprocketAId)
@@ -605,8 +606,12 @@ function chainSprocketPhases(parts: PlacedPart[], chains: SprocketChain[]) {
       }
       if (!closest) continue
       const local = new Vector3(...closest).sub(center)
-      const inverseRotation = eulerToQuat(sprocket.rotation, new Quaternion()).invert()
-      local.applyQuaternion(inverseRotation)
+      const rotation = eulerToQuat(sprocket.rotation, new Quaternion())
+      const axis = localZ.clone().applyQuaternion(rotation).normalize()
+      const inverseAxisAlignment = new Quaternion()
+        .setFromUnitVectors(localZ, axis)
+        .invert()
+      local.applyQuaternion(inverseAxisAlignment)
       phases.set(
         sprocket.instanceId,
         Math.atan2(local.y, local.x) - sprocketValleyOffset(sprocket),
@@ -642,6 +647,7 @@ export function SceneParts({
   showGizmos = true,
   onSelect,
   onTransform,
+  onTransformLive,
   onMoveStart,
   onMoveEnd,
 }: {
@@ -656,6 +662,11 @@ export function SceneParts({
   showGizmos?: boolean
   onSelect: (id: number, additive: boolean) => void
   onTransform: (
+    id: number,
+    position: [number, number, number],
+    rotation: [number, number, number],
+  ) => void
+  onTransformLive: (
     id: number,
     position: [number, number, number],
     rotation: [number, number, number],
@@ -681,6 +692,7 @@ export function SceneParts({
             rotation={part.rotation}
             onSelect={(additive) => onSelect(part.instanceId, additive)}
             onTransform={(position, rotation) => onTransform(part.instanceId, position, rotation)}
+            onTransformLive={(position, rotation) => onTransformLive(part.instanceId, position, rotation)}
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
           >

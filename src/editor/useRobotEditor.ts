@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Quaternion, Vector3 } from 'three'
 import { effectiveGraph, unionConnected } from '@/model/connections'
 import {
+  chainedSprocketIds,
+  chainLinkCount,
   chainSelection,
+  isSprocket,
   nextChainId,
   sameChainPair,
   type SprocketChain,
@@ -52,6 +55,7 @@ type Snapshot = {
   parts: PlacedPart[]
   chains: SprocketChain[]
   selectedIds: number[]
+  selectedChainId: number | null
   primaryId: number | null
   nextId: number
 }
@@ -91,8 +95,33 @@ function isTypingTarget(target: EventTarget | null) {
 const _quat = new Quaternion()
 const _prev = new Quaternion()
 const _delta = new Quaternion()
+const _chainRotation = new Quaternion()
 const _pos = new Vector3()
 const _pivot = new Vector3()
+const _axis = new Vector3()
+
+const AXIAL_ROTATION_TOLERANCE = Math.cos(Math.PI / 180)
+
+function sprocketAxialRotation(
+  part: PlacedPart,
+  rotation: [number, number, number],
+) {
+  eulerToQuat(part.rotation, _prev)
+  eulerToQuat(rotation, _quat)
+  _delta.copy(_quat).multiply(_prev.clone().invert()).normalize()
+
+  const vectorLength = Math.hypot(_delta.x, _delta.y, _delta.z)
+  if (vectorLength < 1e-8) return null
+
+  _axis.set(0, 0, 1).applyQuaternion(_prev).normalize()
+  const direction = (_delta.x * _axis.x + _delta.y * _axis.y + _delta.z * _axis.z) / vectorLength
+  if (Math.abs(direction) < AXIAL_ROTATION_TOLERANCE) return null
+
+  let angle = 2 * Math.atan2(vectorLength, _delta.w)
+  if (angle > Math.PI) angle -= Math.PI * 2
+  angle *= Math.sign(direction)
+  return { axis: _axis.clone(), angle }
+}
 
 function debugStartupParts(): PlacedPart[] {
   if (typeof window === 'undefined') return []
@@ -115,6 +144,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   const [chains, setChains] = useState<SprocketChain[]>([])
   const [nextId, setNextId] = useState(() => (debugStartupParts().length > 0 ? 2 : 1))
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [selectedChainId, setSelectedChainId] = useState<number | null>(null)
   const [primaryId, setPrimaryId] = useState<number | null>(null)
   const [fileName, setFileName] = useState(UNTITLED_NAME)
   const [undoStack, setUndoStack] = useState<Snapshot[]>([])
@@ -137,13 +167,16 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   const partsRef = useRef(parts)
   const chainsRef = useRef(chains)
   const selectedIdsRef = useRef(selectedIds)
+  const selectedChainIdRef = useRef(selectedChainId)
   const primaryIdRef = useRef(primaryId)
   const nextIdRef = useRef(nextId)
   const placingPartRef = useRef(placingPart)
   const toolRef = useRef(tool)
   const colorRef = useRef(color)
+  const activeTransformRef = useRef<Snapshot | null>(null)
   const commandsRef = useRef({
     hasSelection: false,
+    canDelete: false,
     canPaste: false,
     newFile: () => {},
     openFile: async () => {},
@@ -175,6 +208,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   partsRef.current = parts
   chainsRef.current = chains
   selectedIdsRef.current = selectedIds
+  selectedChainIdRef.current = selectedChainId
   primaryIdRef.current = primaryId
   nextIdRef.current = nextId
   placingPartRef.current = placingPart
@@ -189,12 +223,20 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   const dirty = serializeDocument(parts, camera, chains) !== savedJson.current
   const primary = parts.find((part) => part.instanceId === primaryId) ?? null
+  const selectedChain = chains.find((chain) => chain.id === selectedChainId) ?? null
+  const selectedChainLinkCount = useMemo(() => {
+    if (!selectedChain) return 0
+    const a = parts.find((part) => part.instanceId === selectedChain.sprocketAId)
+    const b = parts.find((part) => part.instanceId === selectedChain.sprocketBId)
+    return a && b ? chainLinkCount(a, b) : 0
+  }, [parts, selectedChain])
 
   const snapshot = useCallback(
     (): Snapshot => ({
       parts: cloneParts(partsRef.current),
       chains: cloneChains(chainsRef.current),
       selectedIds: [...selectedIdsRef.current],
+      selectedChainId: selectedChainIdRef.current,
       primaryId: primaryIdRef.current,
       nextId: nextIdRef.current,
     }),
@@ -230,6 +272,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       setChains(cloneChains(nextChains))
       setNextId(nextInstanceId(nextParts))
       setSelectedIds([])
+      setSelectedChainId(null)
       setPrimaryId(null)
       setPlacingPart(null)
       setMovingSelection(false)
@@ -252,6 +295,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   const startPlacing = useCallback((part: PartDefinition, param1: string, param2: string) => {
     setSelectedIds([])
+    setSelectedChainId(null)
     setPrimaryId(null)
     setMovingSelection(false)
     setPlacingPart({
@@ -284,6 +328,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   }, [])
 
   const selectPart = useCallback((id: number, additive: boolean) => {
+    setSelectedChainId(null)
     if (toolRef.current === 'color') {
       const paint = colorRef.current
       pushHistory()
@@ -309,18 +354,38 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   const clearSelection = useCallback(() => {
     setSelectedIds([])
+    setSelectedChainId(null)
     setPrimaryId(null)
   }, [])
 
+  const selectChain = useCallback((id: number) => {
+    setSelectedIds([])
+    setPrimaryId(null)
+    setSelectedChainId(id)
+  }, [])
+
   const moveGroupTo = useCallback(
-    (ids: Set<number>, primaryFrom: PlacedPart, position: [number, number, number], rotation: [number, number, number]) => {
+    (
+      ids: Set<number>,
+      primaryFrom: PlacedPart,
+      position: [number, number, number],
+      rotation: [number, number, number],
+      chainedRotation?: { ids: Set<number>; axis: Vector3; angle: number },
+      sourceParts?: PlacedPart[],
+    ) => {
       eulerToQuat(primaryFrom.rotation, _prev)
       eulerToQuat(rotation, _quat)
       _delta.copy(_quat).multiply(_prev.invert())
       _pivot.set(...primaryFrom.position)
       setParts((current) =>
-        current.map((part) => {
-          if (!ids.has(part.instanceId)) return part
+        (sourceParts ?? current).map((part) => {
+          if (!ids.has(part.instanceId)) {
+            if (!chainedRotation?.ids.has(part.instanceId) || !isSprocket(part)) return part
+            eulerToQuat(part.rotation, _quat)
+            _chainRotation.setFromAxisAngle(chainedRotation.axis, chainedRotation.angle)
+            _quat.premultiply(_chainRotation)
+            return { ...part, rotation: quatToEuler(_quat) }
+          }
           if (part.instanceId === primaryFrom.instanceId) {
             return { ...part, position: [...position], rotation: [...rotation] }
           }
@@ -394,36 +459,81 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     [moveGroupTo, movingSelection, pushHistory, stopPlacing],
   )
 
-  const transformPart = useCallback(
-    (id: number, position: [number, number, number], rotation: [number, number, number]) => {
-      const current = partsRef.current.find((part) => part.instanceId === id)
+  const applyPartTransform = useCallback(
+    (
+      id: number,
+      position: [number, number, number],
+      rotation: [number, number, number],
+      recordHistory: boolean,
+    ) => {
+      const transformStart = activeTransformRef.current
+      const sourceParts = transformStart?.parts ?? partsRef.current
+      const current = sourceParts.find((part) => part.instanceId === id)
       if (
         !current ||
         (sameVec3(current.position, position) && sameVec3(current.rotation, rotation))
       ) {
         return
       }
-      pushHistory()
+      if (recordHistory) {
+        if (transformStart) {
+          setUndoStack((stack) => [...stack, transformStart].slice(-MAX_HISTORY))
+          setRedoStack([])
+        } else {
+          pushHistory()
+        }
+      }
       const ids = unionConnected(
         selectedIdsRef.current.includes(id) ? selectedIdsRef.current : [id],
-        effectiveGraph(partsRef.current),
+        effectiveGraph(sourceParts),
       )
-      moveGroupTo(ids, current, position, rotation)
+      const axialRotation = isSprocket(current)
+        ? sprocketAxialRotation(current, rotation)
+        : null
+      const chainedRotation = axialRotation
+        ? {
+            ids: chainedSprocketIds(chainsRef.current, id),
+            axis: axialRotation.axis,
+            angle: axialRotation.angle,
+          }
+        : undefined
+      moveGroupTo(ids, current, position, rotation, chainedRotation, sourceParts)
     },
     [moveGroupTo, pushHistory],
   )
 
+  const transformPart = useCallback(
+    (id: number, position: [number, number, number], rotation: [number, number, number]) => {
+      applyPartTransform(id, position, rotation, true)
+    },
+    [applyPartTransform],
+  )
+
+  const previewPartTransform = useCallback(
+    (id: number, position: [number, number, number], rotation: [number, number, number]) => {
+      applyPartTransform(id, position, rotation, false)
+    },
+    [applyPartTransform],
+  )
+
   const deleteSelected = useCallback(() => {
     const ids = unionConnected(selectedIdsRef.current, effectiveGraph(partsRef.current))
-    if (ids.size === 0) return
+    const chainId = selectedChainIdRef.current
+    if (ids.size === 0 && chainId == null) return
     pushHistory()
-    setParts((current) => current.filter((part) => !ids.has(part.instanceId)))
+    if (ids.size > 0) {
+      setParts((current) => current.filter((part) => !ids.has(part.instanceId)))
+    }
     setChains((current) =>
       current.filter(
-        (chain) => !ids.has(chain.sprocketAId) && !ids.has(chain.sprocketBId),
+        (chain) =>
+          chain.id !== chainId &&
+          !ids.has(chain.sprocketAId) &&
+          !ids.has(chain.sprocketBId),
       ),
     )
     setSelectedIds([])
+    setSelectedChainId(null)
     setPrimaryId(null)
   }, [pushHistory])
 
@@ -583,6 +693,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   const selectAll = useCallback(() => {
     const ids = partsRef.current.map((part) => part.instanceId)
     setSelectedIds(ids)
+    setSelectedChainId(null)
     setPrimaryId(ids.at(-1) ?? null)
   }, [])
 
@@ -653,6 +764,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     setParts(cloneParts(prev.parts))
     setChains(cloneChains(prev.chains))
     setSelectedIds([...prev.selectedIds])
+    setSelectedChainId(prev.selectedChainId)
     setPrimaryId(prev.primaryId)
     setNextId(prev.nextId)
   }, [snapshot, undoStack])
@@ -665,6 +777,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     setParts(cloneParts(next.parts))
     setChains(cloneChains(next.chains))
     setSelectedIds([...next.selectedIds])
+    setSelectedChainId(next.selectedChainId)
     setPrimaryId(next.primaryId)
     setNextId(next.nextId)
   }, [redoStack, snapshot])
@@ -733,9 +846,11 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   const onMoveStart = useCallback(() => {
     ignorePointerMiss.current = true
-  }, [])
+    activeTransformRef.current = snapshot()
+  }, [snapshot])
 
   const onMoveEnd = useCallback(() => {
+    activeTransformRef.current = null
     window.setTimeout(() => {
       ignorePointerMiss.current = false
     }, 0)
@@ -762,6 +877,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   commandsRef.current = {
     hasSelection: selectedIds.length > 0,
+    canDelete: selectedIds.length > 0 || selectedChainId != null,
     canPaste: clipboard.length > 0,
     newFile,
     openFile,
@@ -816,7 +932,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       }
 
       if (matchesHotkey(event, hotkeys.delete)) {
-        if (cmd.hasSelection) {
+        if (cmd.canDelete) {
           event.preventDefault()
           cmd.deleteSelected()
         }
@@ -958,6 +1074,8 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     selectedIds,
     primaryId,
     primary,
+    selectedChainId,
+    selectedChainLinkCount,
     connectedIds,
     fileName,
     dirty,
@@ -987,6 +1105,8 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     startMoveSelection,
     placeAt,
     transformPart,
+    previewPartTransform,
+    selectChain,
     updatePartShape,
     selectedChainAction,
     toggleSelectedChain,
@@ -997,6 +1117,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
     hasSelection: selectedIds.length > 0,
+    canDelete: selectedIds.length > 0 || selectedChainId != null,
     canPaste: clipboard.length > 0,
     newFile,
     openFile,

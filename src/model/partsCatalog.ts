@@ -1373,13 +1373,13 @@ export const PARTS: PartDefinition[] = [
       {
         "param1": "Normal",
         "param2": "",
-        "meshName": "Normal Shaft",
+        "meshName": "SHFT_1in",
         "fbx": "Shafts and Hardware/Shafts.fbx"
       },
       {
         "param1": "High Strength",
         "param2": "",
-        "meshName": "HS Shaft",
+        "meshName": "HSFT_1in",
         "fbx": "Shafts and Hardware/Shafts.fbx"
       }
     ],

@@ -8,6 +8,7 @@ import { HotkeyDialog } from '@/components/editor/HotkeyDialog'
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel'
 import { ColorSwatches, ToolsSidebar } from '@/components/editor/ToolsSidebar'
 import { PolycarbonateBadge } from '@/components/editor/PolycarbonateBadge'
+import { ChainBadge } from '@/components/editor/ChainBadge'
 import { WeightBadge } from '@/components/editor/WeightBadge'
 import { BoxSelect } from '@/components/scene/BoxSelect'
 import { FpsCounter } from '@/components/scene/FpsCounter'
@@ -247,7 +248,7 @@ function App() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                disabled={!editor.hasSelection}
+                disabled={!editor.canDelete}
                 onSelect={() => editor.deleteSelected()}
               >
                 Delete
@@ -312,6 +313,7 @@ function App() {
                 tool={editor.tool}
                 onTool={editor.setTool}
                 hasSelection={editor.hasSelection}
+                canDelete={editor.canDelete}
                 onDuplicate={editor.duplicate}
                 onDelete={editor.deleteSelected}
                 onFocus={() => setFocusToken((value) => value + 1)}
@@ -352,6 +354,9 @@ function App() {
               <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
                 <WeightBadge parts={editor.parts} />
                 <PolycarbonateBadge parts={editor.parts} />
+                {editor.selectedChainId != null ? (
+                  <ChainBadge linkCount={editor.selectedChainLinkCount} />
+                ) : null}
               </div>
               <div
                 ref={fpsLabel}
@@ -373,7 +378,13 @@ function App() {
               <directionalLight position={[8, 12, 6]} intensity={0.8} />
               <CameraProjection ortho={editor.ortho} />
               {editor.showGrid ? <InfiniteGrid /> : null}
-              <SprocketChains parts={editor.parts} chains={editor.chains} />
+              <SprocketChains
+                parts={editor.parts}
+                chains={editor.chains}
+                selectedChainId={editor.selectedChainId}
+                interactive={editor.placingPart == null}
+                onSelect={editor.selectChain}
+              />
               <SceneParts
                 parts={editor.parts}
                 chains={editor.chains}
@@ -386,6 +397,7 @@ function App() {
                 showGizmos={editor.tool === 'transform'}
                 onSelect={editor.selectPart}
                 onTransform={editor.transformPart}
+                onTransformLive={editor.previewPartTransform}
                 onMoveStart={editor.onMoveStart}
                 onMoveEnd={editor.onMoveEnd}
               />
