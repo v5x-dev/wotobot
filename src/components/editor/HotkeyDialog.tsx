@@ -44,7 +44,7 @@ export function HotkeyDialog({
             Click a shortcut, then press its replacement. Press Backspace to clear it.
           </DialogDescription>
         </DialogHeader>
-        <div className="overflow-y-auto pr-1">
+        <div className="max-h-[55vh] overflow-y-auto pr-1">
           {(['File', 'Edit', 'Tools', 'View'] as const).map((group) => (
             <section key={group} className="mb-4 last:mb-0">
               <h3 className="mb-1 text-xs font-medium text-muted-foreground">{group}</h3>

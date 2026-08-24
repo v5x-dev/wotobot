@@ -544,7 +544,7 @@ export function SelectablePart({
           if (!interactive || event.button !== 0) return
           event.stopPropagation()
           if (gizmoPickRef.current) return
-          onSelect(event.ctrlKey || event.metaKey)
+          onSelect(event.shiftKey)
 
           const group = groupRef.current
           if (!group) return
