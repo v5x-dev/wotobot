@@ -16,11 +16,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { COLOR_PRESETS, hexToRgb, rgbToHex } from '@/model/colors'
 import type { EditorTool } from '@/editor/useRobotEditor'
+import { formatHotkey, type Hotkeys } from '@/hotkeys'
 
-const TOOLS: { id: EditorTool; label: string; shortcut: string; icon: typeof MousePointer2 }[] = [
-  { id: 'transform', label: 'Transform', shortcut: '1', icon: MousePointer2 },
-  { id: 'move', label: 'Move', shortcut: '2', icon: Move3d },
-  { id: 'color', label: 'Color', shortcut: '3', icon: Palette },
+const TOOLS: { id: EditorTool; label: string; action: keyof Hotkeys; icon: typeof MousePointer2 }[] = [
+  { id: 'transform', label: 'Transform', action: 'transformTool', icon: MousePointer2 },
+  { id: 'move', label: 'Move', action: 'moveTool', icon: Move3d },
+  { id: 'color', label: 'Color', action: 'colorTool', icon: Palette },
 ]
 
 export function ToolsSidebar({
@@ -41,6 +42,7 @@ export function ToolsSidebar({
   chainAction,
   chainActionReason,
   onToggleChain,
+  hotkeys,
 }: {
   tool: EditorTool
   onTool: (tool: EditorTool) => void
@@ -59,6 +61,7 @@ export function ToolsSidebar({
   chainAction: 'add' | 'remove' | null
   chainActionReason: string
   onToggleChain: () => void
+  hotkeys: Hotkeys
 }) {
   return (
     <div className="pointer-events-auto absolute top-3 left-3 z-20 flex h-fit w-fit flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-sm">
@@ -67,8 +70,8 @@ export function ToolsSidebar({
           key={item.id}
           variant={tool === item.id ? 'secondary' : 'ghost'}
           size="icon-sm"
-          aria-label={`${item.label} (${item.shortcut})`}
-          title={`${item.label} (${item.shortcut})`}
+          aria-label={`${item.label} (${formatHotkey(hotkeys[item.action])})`}
+          title={`${item.label} (${formatHotkey(hotkeys[item.action])})`}
           onClick={() => onTool(item.id)}
         >
           <item.icon />
@@ -90,7 +93,7 @@ export function ToolsSidebar({
         variant="ghost"
         size="icon-sm"
         aria-label="Duplicate"
-        title="Duplicate (Ctrl+D)"
+        title={`Duplicate (${formatHotkey(hotkeys.duplicate)})`}
         disabled={!hasSelection}
         onClick={onDuplicate}
       >
@@ -110,7 +113,7 @@ export function ToolsSidebar({
         variant="ghost"
         size="icon-sm"
         aria-label="Focus"
-        title="Focus (F)"
+        title={`Focus (${formatHotkey(hotkeys.focus)})`}
         disabled={!hasSelection}
         onClick={onFocus}
       >
@@ -121,7 +124,7 @@ export function ToolsSidebar({
         variant="ghost"
         size="icon-sm"
         aria-label="Group"
-        title="Group (Ctrl+G)"
+        title={`Group (${formatHotkey(hotkeys.group)})`}
         disabled={!canGroup}
         onClick={onGroup}
       >
@@ -131,7 +134,7 @@ export function ToolsSidebar({
         variant="ghost"
         size="icon-sm"
         aria-label="Ungroup"
-        title="Ungroup (Ctrl+Shift+G)"
+        title={`Ungroup (${formatHotkey(hotkeys.ungroup)})`}
         disabled={!canUngroup}
         onClick={onUngroup}
       >
@@ -143,7 +146,7 @@ export function ToolsSidebar({
         size="icon-sm"
         aria-label="Show all holes"
         aria-pressed={showHoles}
-        title="Show all holes (H)"
+        title={`Show all holes (${formatHotkey(hotkeys.toggleHoles)})`}
         onClick={onToggleHoles}
       >
         <CircleDotDashed />
@@ -153,7 +156,7 @@ export function ToolsSidebar({
         size="icon-sm"
         aria-label={ortho ? 'Use perspective projection' : 'Use orthographic projection'}
         aria-pressed={ortho}
-        title={`${ortho ? 'Perspective' : 'Orthographic'} (O)`}
+        title={`${ortho ? 'Perspective' : 'Orthographic'} (${formatHotkey(hotkeys.toggleProjection)})`}
         onClick={onToggleProjection}
       >
         {ortho ? <Square /> : <Box />}

@@ -30,6 +30,7 @@ import {
   type FileSystemFileHandle,
 } from '@/persistence/fileIO'
 import { eulerToQuat, quatToEuler } from '@/model/math'
+import { hotkeyUsesKey, matchesHotkey, type Hotkeys } from '@/hotkeys'
 import {
   clonePolycarbonateShape,
   defaultPolycarbonateShape,
@@ -109,7 +110,7 @@ function debugStartupParts(): PlacedPart[] {
   ]
 }
 
-export function useRobotEditor() {
+export function useRobotEditor(hotkeys: Hotkeys) {
   const [parts, setParts] = useState<PlacedPart[]>(() => debugStartupParts())
   const [chains, setChains] = useState<SprocketChain[]>([])
   const [nextId, setNextId] = useState(() => (debugStartupParts().length > 0 ? 2 : 1))
@@ -799,9 +800,6 @@ export function useRobotEditor() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return
       const cmd = commandsRef.current
-      const mod = event.metaKey || event.ctrlKey
-      const key = event.key.toLowerCase()
-
       if (event.key === 'Escape') {
         event.preventDefault()
         cmd.stopPlacing()
@@ -811,13 +809,13 @@ export function useRobotEditor() {
 
       if (isTypingTarget(event.target)) return
 
-      if (!mod && !event.altKey && event.code === 'Space') {
+      if (matchesHotkey(event, hotkeys.flipPlacement)) {
         event.preventDefault()
         setFlipHole(true)
         return
       }
 
-      if (!mod && !event.altKey && (event.key === 'Backspace' || event.key === 'Delete')) {
+      if (matchesHotkey(event, hotkeys.delete)) {
         if (cmd.hasSelection) {
           event.preventDefault()
           cmd.deleteSelected()
@@ -825,113 +823,117 @@ export function useRobotEditor() {
         return
       }
 
-      if (!mod && !event.altKey && key === 'r' && cmd.placing) {
+      if (matchesHotkey(event, hotkeys.rotatePlacement) && cmd.placing) {
         event.preventDefault()
         cmd.toggleRotatePlacement()
         return
       }
 
-      if (!mod && !event.altKey && key === 'h') {
+      if (matchesHotkey(event, hotkeys.toggleHoles)) {
         event.preventDefault()
         cmd.toggleHoles()
         return
       }
-      if (!mod && !event.altKey && key === 'g') {
+      if (matchesHotkey(event, hotkeys.toggleGrid)) {
         event.preventDefault()
         cmd.toggleGrid()
         return
       }
-      if (!mod && !event.altKey && key === 'o') {
+      if (matchesHotkey(event, hotkeys.toggleProjection)) {
         event.preventDefault()
         cmd.toggleOrtho()
         return
       }
-      if (!mod && !event.altKey && key === '1') {
+      if (matchesHotkey(event, hotkeys.transformTool)) {
+        event.preventDefault()
         cmd.setTool('transform')
         return
       }
-      if (!mod && !event.altKey && key === '2') {
+      if (matchesHotkey(event, hotkeys.moveTool)) {
+        event.preventDefault()
         cmd.setTool('move')
         return
       }
-      if (!mod && !event.altKey && key === '3') {
+      if (matchesHotkey(event, hotkeys.colorTool)) {
+        event.preventDefault()
         cmd.setTool('color')
         return
       }
 
-      if (!mod || event.altKey) {
-        if (event.shiftKey && key === 'd' && cmd.hasSelection) {
-          event.preventDefault()
-          cmd.startMoveSelection()
-        }
+      if (matchesHotkey(event, hotkeys.moveSelection)) {
+        if (cmd.hasSelection) cmd.startMoveSelection()
+        event.preventDefault()
         return
       }
 
-      if (key === 'n') {
+      if (matchesHotkey(event, hotkeys.newFile)) {
         event.preventDefault()
         cmd.newFile()
         return
       }
-      if (key === 'o') {
+      if (matchesHotkey(event, hotkeys.openFile)) {
         event.preventDefault()
         void cmd.openFile()
         return
       }
-      if (key === 's') {
+      if (matchesHotkey(event, hotkeys.saveFileAs)) {
         event.preventDefault()
-        if (event.shiftKey) void cmd.saveFileAs()
-        else void cmd.saveFile()
+        void cmd.saveFileAs()
         return
       }
-      if (key === 'a') {
+      if (matchesHotkey(event, hotkeys.saveFile)) {
+        event.preventDefault()
+        void cmd.saveFile()
+        return
+      }
+      if (matchesHotkey(event, hotkeys.selectAll)) {
         event.preventDefault()
         cmd.selectAll()
         return
       }
-      if (key === 'd' && cmd.hasSelection) {
+      if (matchesHotkey(event, hotkeys.duplicate) && cmd.hasSelection) {
         event.preventDefault()
         cmd.duplicate()
         return
       }
-      if (key === 'g') {
+      if (matchesHotkey(event, hotkeys.ungroup)) {
         event.preventDefault()
-        if (event.shiftKey) cmd.ungroupSelected()
-        else cmd.groupSelected()
+        cmd.ungroupSelected()
         return
       }
-      if (key === 'z' && event.shiftKey) {
+      if (matchesHotkey(event, hotkeys.group)) {
+        event.preventDefault()
+        cmd.groupSelected()
+        return
+      }
+      if (matchesHotkey(event, hotkeys.redo)) {
         event.preventDefault()
         cmd.redo()
         return
       }
-      if (key === 'z') {
+      if (matchesHotkey(event, hotkeys.undo)) {
         event.preventDefault()
         cmd.undo()
         return
       }
-      if (key === 'y') {
-        event.preventDefault()
-        cmd.redo()
-        return
-      }
-      if (key === 'x' && cmd.hasSelection) {
+      if (matchesHotkey(event, hotkeys.cut) && cmd.hasSelection) {
         event.preventDefault()
         cmd.cut()
         return
       }
-      if (key === 'c' && cmd.hasSelection) {
+      if (matchesHotkey(event, hotkeys.copy) && cmd.hasSelection) {
         event.preventDefault()
         cmd.copy()
         return
       }
-      if (key === 'v' && cmd.canPaste) {
+      if (matchesHotkey(event, hotkeys.paste) && cmd.canPaste) {
         event.preventDefault()
         cmd.paste()
       }
     }
 
     function onKeyUp(event: KeyboardEvent) {
-      if (event.code === 'Space') setFlipHole(false)
+      if (hotkeyUsesKey(event, hotkeys.flipPlacement)) setFlipHole(false)
     }
 
     function onBeforeUnload(event: BeforeUnloadEvent) {
@@ -948,7 +950,7 @@ export function useRobotEditor() {
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('beforeunload', onBeforeUnload)
     }
-  }, [camera])
+  }, [camera, hotkeys])
 
   return {
     parts,

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useThree } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import type { PlacedPart } from '@/model/parts'
+import { hotkeyUsesKey, matchesHotkey } from '@/hotkeys'
 
 const MIN_DRAG = 5
 
@@ -10,10 +11,12 @@ export function BoxSelect({
   enabled,
   parts,
   onSelect,
+  hotkey,
 }: {
   enabled: boolean
   parts: PlacedPart[]
   onSelect: (ids: number[]) => void
+  hotkey: string
 }) {
   const camera = useThree((state) => state.camera)
   const gl = useThree((state) => state.gl)
@@ -27,10 +30,10 @@ export function BoxSelect({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === 'b' && !event.ctrlKey && !event.metaKey) holdingB.current = true
+      if (matchesHotkey(event, hotkey)) holdingB.current = true
     }
     function onKeyUp(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === 'b') holdingB.current = false
+      if (hotkeyUsesKey(event, hotkey)) holdingB.current = false
     }
 
     function onPointerDown(event: PointerEvent) {
@@ -88,7 +91,7 @@ export function BoxSelect({
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [camera, enabled, gl])
+  }, [camera, enabled, gl, hotkey])
 
   if (!box) return null
   return createPortal(

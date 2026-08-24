@@ -46,3 +46,5 @@ macOS uses `⌘` where Windows/Linux use `Ctrl`.
 | `F`                 | Focus camera on selection |
 
 Mouse: right-drag orbits, middle-drag pans.
+
+Choose **Help > Keyboard shortcuts** to change shortcuts. Changes are saved in the browser.

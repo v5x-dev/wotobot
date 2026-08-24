@@ -4,6 +4,7 @@ import { CircleHelp, File, Maximize2, Minimize2, Pencil } from 'lucide-react'
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
 import { AddSidebar } from '@/components/editor/AddSidebar'
+import { HotkeyDialog } from '@/components/editor/HotkeyDialog'
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel'
 import { ColorSwatches, ToolsSidebar } from '@/components/editor/ToolsSidebar'
 import { PolycarbonateBadge } from '@/components/editor/PolycarbonateBadge'
@@ -36,18 +37,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { formatHotkey, matchesHotkey, useHotkeys } from '@/hotkeys'
 
-const IS_APPLE = /Mac|iPhone|iPad|iPod/.test(navigator.platform)
 const DOCS_URL = 'https://protobot.web.app/'
 const CAMERA_POSITION: [number, number, number] = [5, 4, 5]
-
-function shortcut(key: string) {
-  return IS_APPLE ? `⌘${key}` : `Ctrl+${key}`
-}
-
-function shiftShortcut(key: string) {
-  return IS_APPLE ? `⇧⌘${key}` : `Ctrl+Shift+${key}`
-}
 
 function TopMenu({
   icon,
@@ -144,8 +137,10 @@ function CameraProjection({ ortho }: { ortho: boolean }) {
 }
 
 function App() {
-  const editor = useRobotEditor()
+  const { hotkeys, setHotkey, resetHotkeys } = useHotkeys()
+  const editor = useRobotEditor(hotkeys)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [hotkeysOpen, setHotkeysOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [focusToken, setFocusToken] = useState(0)
@@ -159,7 +154,7 @@ function App() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() !== 'f' || event.ctrlKey || event.metaKey || event.altKey) return
+      if (!matchesHotkey(event, hotkeys.focus)) return
       const target = event.target
       if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return
       if (!editor.primary) return
@@ -168,7 +163,7 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [editor.primary])
+  }, [editor.primary, hotkeys.focus])
 
   function toggleFullscreen() {
     if (document.fullscreenElement) {
@@ -190,19 +185,19 @@ function App() {
             <TopMenu icon={<File />} label="File">
               <DropdownMenuItem onSelect={() => editor.newFile()}>
                 New
-                <DropdownMenuShortcut>{shortcut('N')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.newFile)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void editor.openFile()}>
                 Open
-                <DropdownMenuShortcut>{shortcut('O')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.openFile)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void editor.saveFile()}>
                 Save
-                <DropdownMenuShortcut>{shortcut('S')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.saveFile)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void editor.saveFileAs()}>
                 Save As...
-                <DropdownMenuShortcut>{shiftShortcut('S')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.saveFileAs)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void editor.exportParts()}>
@@ -212,43 +207,43 @@ function App() {
             <TopMenu icon={<Pencil />} label="Edit">
               <DropdownMenuItem disabled={!editor.canUndo} onSelect={() => editor.undo()}>
                 Undo
-                <DropdownMenuShortcut>{shortcut('Z')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.undo)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!editor.canRedo} onSelect={() => editor.redo()}>
                 Redo
-                <DropdownMenuShortcut>{shiftShortcut('Z')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.redo)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={!editor.hasSelection} onSelect={() => editor.cut()}>
                 Cut
-                <DropdownMenuShortcut>{shortcut('X')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.cut)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!editor.hasSelection} onSelect={() => editor.copy()}>
                 Copy
-                <DropdownMenuShortcut>{shortcut('C')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.copy)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!editor.canPaste} onSelect={() => editor.paste()}>
                 Paste
-                <DropdownMenuShortcut>{shortcut('V')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.paste)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!editor.hasSelection} onSelect={() => editor.duplicate()}>
                 Duplicate
-                <DropdownMenuShortcut>{shortcut('D')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.duplicate)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => editor.selectAll()}>
                 Select All
-                <DropdownMenuShortcut>{shortcut('A')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.selectAll)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!editor.canGroup} onSelect={() => editor.groupSelected()}>
                 Group
-                <DropdownMenuShortcut>{shortcut('G')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.group)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={!editor.canUngroup}
                 onSelect={() => editor.ungroupSelected()}
               >
                 Ungroup
-                <DropdownMenuShortcut>{shiftShortcut('G')}</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.ungroup)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -256,10 +251,14 @@ function App() {
                 onSelect={() => editor.deleteSelected()}
               >
                 Delete
-                <DropdownMenuShortcut>Del</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatHotkey(hotkeys.delete)}</DropdownMenuShortcut>
               </DropdownMenuItem>
             </TopMenu>
             <TopMenu icon={<CircleHelp />} label="Help">
+              <DropdownMenuItem onSelect={() => setHotkeysOpen(true)}>
+                Keyboard shortcuts
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => window.open(DOCS_URL, '_blank', 'noopener,noreferrer')}
               >
@@ -327,6 +326,7 @@ function App() {
                 chainAction={editor.selectedChainAction.mode}
                 chainActionReason={editor.selectedChainAction.reason}
                 onToggleChain={editor.toggleSelectedChain}
+                hotkeys={hotkeys}
               />
               {editor.tool === 'color' ? (
                 <ColorSwatches
@@ -424,7 +424,12 @@ function App() {
                 />
               </GizmoHelper>
               <FocusCamera point={editor.primary?.position ?? null} token={focusToken} />
-              <BoxSelect enabled={!editor.placingPart} parts={editor.parts} onSelect={boxSelect} />
+              <BoxSelect
+                enabled={!editor.placingPart}
+                parts={editor.parts}
+                onSelect={boxSelect}
+                hotkey={hotkeys.boxSelect}
+              />
               <FpsCounter target={fpsLabel} />
             </Canvas>
           </SidebarInset>
@@ -445,6 +450,13 @@ function App() {
             </DialogHeader>
           </DialogContent>
         </Dialog>
+        <HotkeyDialog
+          open={hotkeysOpen}
+          onOpenChange={setHotkeysOpen}
+          hotkeys={hotkeys}
+          onChange={setHotkey}
+          onReset={resetHotkeys}
+        />
       </div>
     </TooltipProvider>
   )
