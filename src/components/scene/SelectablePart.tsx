@@ -25,6 +25,7 @@ import {
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { computeBoundsTree } from 'three-mesh-bvh'
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib'
+import { consumeGizmoPointer, setGizmoPointerTarget } from './gizmoPointer'
 import { AXIS_COLORS } from '@/model/colors'
 import { GRID_SNAP, ROTATION_SNAP, snap } from '@/model/grid'
 
@@ -80,10 +81,10 @@ function applyAxisColors(root: Object3D) {
   })
 }
 
-function firstVisibleHit(raycaster: Raycaster, root: Object3D, skip?: Set<string>) {
+function firstPickerHit(raycaster: Raycaster, root: Object3D, skip?: Set<string>) {
   for (const hit of raycaster.intersectObject(root, true)) {
-    if (!hit.object.visible) continue
     if (skip?.has(hit.object.name)) continue
+    // Picker groups stay hidden so they don't render; their children still catch rays.
     return hit
   }
   return undefined
@@ -164,7 +165,7 @@ function pickerHit(
     -((event.clientY - rect.top) / rect.height) * 2 + 1,
   )
   raycaster.setFromCamera(_pointer, camera)
-  return firstVisibleHit(
+  return firstPickerHit(
     raycaster,
     controls.gizmo.picker[mode],
     mode === 'rotate' ? HIDDEN_ROTATE_HANDLES : undefined,
@@ -278,13 +279,11 @@ function alignFlippedArrowHeads(root: Object3D) {
 
 function CombinedTransformGizmo({
   object,
-  gizmoPickRef,
   onMouseDown,
   onMouseUp,
   onChange,
 }: {
   object: RefObject<Object3D>
-  gizmoPickRef: { current: boolean }
   onMouseDown: () => void
   onMouseUp: () => void
   onChange: () => void
@@ -328,7 +327,7 @@ function CombinedTransformGizmo({
       const rotateControls = asControls(rotateRef.current)
       if (!translateControls || !rotateControls) return
       const pick = winner(event)
-      gizmoPickRef.current = pick !== null
+      setGizmoPointerTarget(pick !== null)
       if (pick === 'translate') {
         rotateControls.enabled = false
         rotateControls.axis = null
@@ -339,7 +338,7 @@ function CombinedTransformGizmo({
     }
 
     function onPointerUp() {
-      gizmoPickRef.current = false
+      setGizmoPointerTarget(false)
       const translateControls = asControls(translateRef.current)
       const rotateControls = asControls(rotateRef.current)
       if (translateControls) translateControls.enabled = true
@@ -361,13 +360,13 @@ function CombinedTransformGizmo({
     document.addEventListener('pointerup', onPointerUp)
     dom.addEventListener('pointermove', onPointerMove)
     return () => {
-      gizmoPickRef.current = false
+      setGizmoPointerTarget(false)
       restoreRotate()
       dom.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('pointerup', onPointerUp)
       dom.removeEventListener('pointermove', onPointerMove)
     }
-  }, [camera, events, gl, gizmoPickRef, raycaster])
+  }, [camera, events, gl, raycaster])
 
   return (
     <>
@@ -450,7 +449,6 @@ export function SelectablePart({
   const movingRef = useRef(false)
   const dragSourceRef = useRef<'part' | 'gizmo' | null>(null)
   const dragStartedRef = useRef(false)
-  const gizmoPickRef = useRef(false)
   const grabOffset = useRef(new Vector3())
   const pointerDown = useRef({ x: 0, y: 0 })
   const orbitControls = useThree((state) => state.controls)
@@ -591,7 +589,7 @@ export function SelectablePart({
         onPointerDown={(event) => {
           if (!interactive || event.button !== 0) return
           event.stopPropagation()
-          if (gizmoPickRef.current) return
+          if (consumeGizmoPointer(event)) return
           onSelect(event.shiftKey)
 
           const group = groupRef.current
@@ -640,7 +638,6 @@ export function SelectablePart({
       {showGizmo && interactive && (
         <CombinedTransformGizmo
           object={groupRef as RefObject<Object3D>}
-          gizmoPickRef={gizmoPickRef}
           onMouseDown={() => {
             dragSourceRef.current = 'gizmo'
             movingRef.current = true

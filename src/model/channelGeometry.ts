@@ -89,7 +89,7 @@ export function assembleChannelGeometry(
 ) {
   const transformed = Array.from({ length: holeCount }, (_, index) => {
     const { geometry: source, flip } = pieceForHole(pieces, index + 1, holeCount, useMid5)
-    const geometry = source.clone()
+    const geometry = source.index ? source.toNonIndexed() : source.clone()
     if (flip) geometry.rotateZ(Math.PI)
     geometry.translate(holeX(index, holeCount), 0, 0)
     return geometry
@@ -139,7 +139,8 @@ export function assembleLinearSplitGeometry(
   useMid5 = true,
 ) {
   const transformed = Array.from({ length: holeCount }, (_, index) => {
-    const geometry = pieceForLinearHole(pieces, index + 1, holeCount, useMid5).clone()
+    const source = pieceForLinearHole(pieces, index + 1, holeCount, useMid5)
+    const geometry = source.index ? source.toNonIndexed() : source.clone()
     geometry.translate(holeX(index, holeCount), 0, 0)
     return geometry
   })

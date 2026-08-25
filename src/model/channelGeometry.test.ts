@@ -122,6 +122,14 @@ describe('assembled channel geometry', () => {
     expect(geometry.getAttribute('position').count).toBe(source.getAttribute('position').count * 7)
   })
 
+  it('normalizes indexed channel pieces for batched rendering', () => {
+    const source = geometryWithEndFaces()
+    source.setIndex([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    const pieces = { single: source, endcap: source, mid: source, mid5: source } satisfies ChannelPieces[2]
+
+    expect(assembleChannelGeometry(pieces, 1).index).toBeNull()
+  })
+
   it('reuses assembled geometry for matching pieces and hole counts', () => {
     const source = geometryWithEndFaces()
     const pieces = { single: source, endcap: source, mid: source, mid5: source } satisfies ChannelPieces[2]
@@ -184,6 +192,20 @@ describe('assembled channel geometry', () => {
     const geometry = assembleLinearSplitGeometry(pieces, 7)
 
     expect(geometry.getAttribute('position').count).toBe(source.getAttribute('position').count * 7)
+  })
+
+  it('normalizes indexed linear pieces for batched rendering', () => {
+    const source = geometryWithEndFaces()
+    source.setIndex([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    const pieces = {
+      start: source,
+      end: source,
+      mid: source,
+      mid5Start: source,
+      mid5End: source,
+    } satisfies LinearSplitPieces
+
+    expect(assembleLinearSplitGeometry(pieces, 1).index).toBeNull()
   })
 
   it('reuses assembled linear geometry for matching models and hole counts', () => {

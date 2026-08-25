@@ -79,7 +79,7 @@ export function AddSidebar({
   onUpdatePlacing,
   onStopPlacing,
 }: Props) {
-  const [selectedKey, setSelectedKey] = useState<string | null>(partKey(CHANNEL))
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [param1, setParam1] = useState(defaultParamValue(CHANNEL.param1))
   const [param2, setParam2] = useState(defaultParamValue(CHANNEL.param2))
   const [error, setError] = useState<string | null>(null)

@@ -78,6 +78,10 @@ export function matchesHotkey(event: KeyboardEvent, binding: string) {
   return binding !== '' && hotkeyFromEvent(event) === binding
 }
 
+export function matchesDeleteHotkey(event: KeyboardEvent, binding: string) {
+  return hotkeyFromEvent(event) === 'Backspace' || matchesHotkey(event, binding)
+}
+
 export function hotkeyUsesKey(event: KeyboardEvent, binding: string) {
   return binding !== '' && binding.split('+').at(-1) === eventKey(event)
 }

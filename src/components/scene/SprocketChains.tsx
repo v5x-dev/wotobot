@@ -20,6 +20,7 @@ import {
   type SprocketChain,
 } from '@/model/chains'
 import type { PlacedPart } from '@/model/parts'
+import { consumeGizmoPointer } from './gizmoPointer'
 
 const chainMaterial = new MeshStandardMaterial({
   color: '#F2F2F2',
@@ -176,6 +177,7 @@ function ChainMesh({
       onPointerDown={(event) => {
         if (!interactive || event.button !== 0) return
         event.stopPropagation()
+        if (consumeGizmoPointer(event)) return
         onSelect()
       }}
     />

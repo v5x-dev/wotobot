@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Euler, Vector3 } from 'three'
+import { Euler, Matrix4, Quaternion, Vector3 } from 'three'
 import { stepMetadataToParts } from './onshapeParts'
 import type { StepMetadata } from './stepMetadataParser'
 
@@ -55,12 +55,96 @@ describe('stepMetadataToParts', () => {
     expect(shaftAxis.x).toBeCloseTo(1)
     expect(shaftAxis.y).toBeCloseTo(0)
     expect(shaftAxis.z).toBeCloseTo(0)
+    const shaftUp = new Vector3(0, 1, 0).applyEuler(new Euler(...result.parts[7].rotation))
+    expect(shaftUp.x).toBeCloseTo(0)
+    expect(shaftUp.y).toBeCloseTo(0)
+    expect(shaftUp.z).toBeCloseTo(1)
     expect(result.parts[8]).toMatchObject({ key: 'Motion:CLMP:Shaft Collar', param1: 'Normal', param2: 'Normal' })
     expect(result.parts[9]).toMatchObject({ key: 'Motion:SPCR:Spacer', param1: 'High Strength', param2: '1/16in' })
     expect(result.skipped.map((part) => part.name)).toEqual(['Part 1'])
   })
 
-  it('centers imported positions on the x and z axes without changing height', () => {
+  it('keeps a rotated Onshape shaft on its source x axis and moves its center', () => {
+    const sourceRotation = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 5)
+    const matrix = new Matrix4().makeRotationFromQuaternion(sourceRotation)
+    const elements = matrix.elements
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        {
+          instanceId: '1',
+          productId: 'shaft',
+          name: '10.5" High Strength Shaft (276-7465)',
+          kind: 'part',
+          path: [],
+          position: [6, 2, 3],
+          rotation: [36, 0, 0],
+          basis: [
+            elements[0], elements[4], elements[8],
+            elements[1], elements[5], elements[9],
+            elements[2], elements[6], elements[10],
+          ],
+        },
+        {
+          instanceId: '2',
+          productId: 'motor',
+          name: 'V5 Smart Motor',
+          kind: 'part',
+          path: [],
+          position: [6, 2, 3],
+          rotation: [0, 0, 0],
+        },
+      ],
+    })
+
+    const shaft = result.parts[0]
+    const axis = new Vector3(0, 0, 1).applyEuler(new Euler(...shaft.rotation))
+    expect(axis.x).toBeCloseTo(1)
+    expect(axis.y).toBeCloseTo(0)
+    expect(axis.z).toBeCloseTo(0)
+    expect(shaft.position).toEqual([-0.375, 0, 0])
+    expect(result.parts[1].position).toEqual([0.375, 0, 0])
+  })
+
+  it('imports standard shafts at their stated length along the source z axis', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        {
+          instanceId: '1',
+          productId: 'standard-shaft',
+          name: '8.5" Standard Shaft (276-1149)',
+          kind: 'part',
+          path: [],
+          position: [7.12, 16.48, -7.17],
+          rotation: [0, 0, 0],
+          basis: [0, 0, -1, 0, -1, 0, -1, 0, 0],
+        },
+        {
+          instanceId: '2',
+          productId: 'motor',
+          name: 'V5 Smart Motor',
+          kind: 'part',
+          path: [],
+          position: [7.12, 16.48, -7.17],
+          rotation: [0, 0, 0],
+        },
+      ],
+    })
+
+    const shaft = result.parts[0]
+    expect(shaft).toMatchObject({ param1: 'Normal', param2: '8.5' })
+    const axis = new Vector3(0, 0, 1).applyEuler(new Euler(...shaft.rotation))
+    expect(axis.x).toBeCloseTo(-1)
+    expect(axis.y).toBeCloseTo(0)
+    expect(axis.z).toBeCloseTo(0)
+    expect(shaft.position[0]).toBeCloseTo(-0.875)
+    expect(result.parts[1].position[0]).toBeCloseTo(0.875)
+  })
+
+  it('centers imported positions and places the lowest point on the grid', () => {
     const result = stepMetadataToParts({
       schema: null,
       units: 'inch',
@@ -71,8 +155,8 @@ describe('stepMetadataToParts', () => {
     })
 
     expect(result.parts.map((part) => part.position)).toEqual([
-      [-2, 4, -3],
-      [2, 8, 3],
+      [-2, 0, -3],
+      [2, 4, 3],
     ])
   })
 })

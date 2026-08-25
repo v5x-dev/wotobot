@@ -20,6 +20,7 @@ import {
 } from 'three'
 import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
+import { consumeGizmoPointer } from './gizmoPointer'
 import type { PartTriangleTotals } from './partTriangles'
 import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
@@ -844,6 +845,7 @@ function InstancedCatalogParts({
           onPointerDown={(event) => {
             if (!interactive || event.button !== 0 || event.instanceId == null) return
             event.stopPropagation()
+            if (consumeGizmoPointer(event)) return
             const part = group.parts[event.instanceId]
             if (part) onSelect(part.instanceId, event.shiftKey)
           }}
@@ -922,9 +924,14 @@ function BatchedStructuralParts({
     return result
   }, [angleFbx, channelPieces, geometryPlan, uChannelFbx])
   const batch = useMemo(() => {
+    const batchGeometries = Array.from(geometries, ([key, geometry]) => ({
+      key,
+      geometry: geometry.index ? geometry.toNonIndexed() : geometry,
+      owned: geometry.index !== null,
+    }))
     let vertexCount = 0
     let indexCount = 0
-    for (const geometry of geometries.values()) {
+    for (const { geometry } of batchGeometries) {
       vertexCount += geometry.attributes.position.count
       indexCount += geometry.index?.count ?? geometry.attributes.position.count
     }
@@ -934,7 +941,10 @@ function BatchedStructuralParts({
     result.userData.partIds = [] as number[]
     const partTriangleTotals: PartTriangleTotals = {}
     const geometryIds = new Map<string, number>()
-    for (const [key, geometry] of geometries) geometryIds.set(key, result.addGeometry(geometry))
+    for (const { key, geometry } of batchGeometries) geometryIds.set(key, result.addGeometry(geometry))
+    for (const { geometry, owned } of batchGeometries) {
+      if (owned) geometry.dispose()
+    }
     for (const [instanceId, partKey, param1, param2] of specs) {
       const part = { key: partKey, param1, param2 } as PlacedPart
       const geometryId = geometryIds.get(structuralGeometryKey(part))
@@ -988,6 +998,7 @@ function BatchedStructuralParts({
       onPointerDown={(event: ThreeEvent<PointerEvent>) => {
         if (!interactive || event.button !== 0 || event.batchId == null) return
         event.stopPropagation()
+        if (consumeGizmoPointer(event)) return
         const id = batch.userData.partIds[event.batchId] as number | undefined
         if (id != null) onSelect(id, event.shiftKey)
       }}
@@ -1004,6 +1015,7 @@ export function SceneParts({
   interactive = true,
   showHoles = false,
   detectHoles = false,
+  wireframe = false,
   showGizmos = true,
   onSelect,
   onTransform,
@@ -1020,6 +1032,7 @@ export function SceneParts({
   interactive?: boolean
   showHoles?: boolean
   detectHoles?: boolean
+  wireframe?: boolean
   showGizmos?: boolean
   onSelect: (id: number, additive: boolean) => void
   onTransform: (
@@ -1050,6 +1063,7 @@ export function SceneParts({
         || part.instanceId === primaryId
         || showHoles
         || detectHoles
+        || wireframe
       const details = mustStayEditable ? null : instancedCatalogDetails(part)
       if (!mustStayEditable && isBatchableStructure(part)) {
         batched.push(part)
@@ -1076,7 +1090,7 @@ export function SceneParts({
       instancedGroups: groups,
       batchedParts: batched.length >= 2 ? batched : [],
     }
-  }, [connectedIds, detectHoles, parts, primaryId, selectedIds, showHoles, visibility])
+  }, [connectedIds, detectHoles, parts, primaryId, selectedIds, showHoles, visibility, wireframe])
   return (
     <>
       {instancedGroups.map((group) => (

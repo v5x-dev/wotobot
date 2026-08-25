@@ -1,5 +1,5 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import { hotkeyUsesKey, matchesHotkey, type Hotkeys } from '@/hotkeys'
+import { hotkeyUsesKey, matchesDeleteHotkey, matchesHotkey, type Hotkeys } from '@/hotkeys'
 
 type EditorTool = 'transform' | 'move' | 'color'
 
@@ -69,7 +69,11 @@ export function useEditorHotkeys(
       }
 
       if (action('flipPlacement', () => setFlipHole(true))) return
-      if (action('delete', cmd.deleteSelected, cmd.canDelete)) return
+      if (matchesDeleteHotkey(event, hotkeys.delete)) {
+        if (cmd.canDelete) cmd.deleteSelected()
+        event.preventDefault()
+        return
+      }
       if (action('rotatePlacement', cmd.toggleRotatePlacement, cmd.placing)) return
       if (action('toggleHoles', cmd.toggleHoles)) return
       if (action('toggleGrid', cmd.toggleGrid)) return

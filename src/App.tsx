@@ -1,8 +1,8 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import { GizmoHelper, GizmoViewport } from '@react-three/drei'
 import { CircleHelp, File, Maximize2, Minimize2, Pencil, Redo2, Undo2 } from 'lucide-react'
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { DoubleSide, MeshBasicMaterial, MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
 import { AddSidebar } from '@/components/editor/AddSidebar'
 import { HotkeyDialog } from '@/components/editor/HotkeyDialog'
 import { OnshapeImportDialog } from '@/components/editor/OnshapeImportDialog'
@@ -135,6 +135,32 @@ function CameraStateSync({ state }: { state: CameraState }) {
   return null
 }
 
+function WireframeView({ enabled }: { enabled: boolean }) {
+  const scene = useThree((state) => state.scene)
+  const invalidate = useThree((state) => state.invalidate)
+  const material = useMemo(
+    () => new MeshBasicMaterial({ color: '#ffffff', side: DoubleSide, wireframe: true }),
+    [],
+  )
+
+  useLayoutEffect(() => {
+    if (!enabled) return
+    const previousMaterial = scene.overrideMaterial
+    // Three.js exposes overrideMaterial as mutable scene state.
+    // oxlint-disable-next-line react/immutability
+    scene.overrideMaterial = material
+    invalidate()
+    return () => {
+      // oxlint-disable-next-line react/immutability
+      scene.overrideMaterial = previousMaterial
+      invalidate()
+    }
+  }, [enabled, invalidate, material, scene])
+
+  useEffect(() => () => material.dispose(), [material])
+  return null
+}
+
 function CameraProjection({ ortho }: { ortho: boolean }) {
   const get = useThree((state) => state.get)
   const set = useThree((state) => state.set)
@@ -219,6 +245,7 @@ function App() {
   const [renaming, setRenaming] = useState(false)
   const [focusToken, setFocusToken] = useState(0)
   const [showDebug, setShowDebug] = useState(false)
+  const [wireframe, setWireframe] = useState(false)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
   const drawCallLabel = useRef<HTMLDivElement>(null)
@@ -269,6 +296,11 @@ function App() {
     } else {
       void document.documentElement.requestFullscreen()
     }
+  }
+
+  function toggleDebug() {
+    if (showDebug) setWireframe(false)
+    setShowDebug((visible) => !visible)
   }
 
   function boxSelect(ids: number[]) {
@@ -546,7 +578,9 @@ function App() {
                 ortho={editor.ortho}
                 onToggleProjection={() => editor.setOrtho(!editor.ortho)}
                 showDebug={showDebug}
-                onToggleDebug={() => setShowDebug((visible) => !visible)}
+                onToggleDebug={toggleDebug}
+                wireframe={wireframe}
+                onToggleWireframe={() => setWireframe((enabled) => !enabled)}
                 canGroup={editor.canGroup}
                 onGroup={editor.groupSelected}
                 canUngroup={editor.canUngroup}
@@ -609,6 +643,7 @@ function App() {
               <directionalLight position={[8, 12, 6]} intensity={0.8} />
               <CameraStateSync state={editor.camera} />
               <CameraProjection ortho={editor.ortho} />
+              <WireframeView enabled={wireframe} />
               {editor.showGrid ? <InfiniteGrid /> : null}
               <SprocketChains
                 parts={editor.parts}
@@ -626,6 +661,7 @@ function App() {
                 interactive={!editor.placingPart && editor.tool !== 'move'}
                 showHoles={editor.showHoles}
                 detectHoles={editor.placingPart != null}
+                wireframe={wireframe}
                 showGizmos={editor.tool === 'transform'}
                 onSelect={editor.selectPart}
                 onTransform={editor.transformPart}

@@ -17,9 +17,13 @@ const CATALOG_RESERVOIR_TO_ONSHAPE = new Quaternion().setFromAxisAngle(
   new Vector3(1, 0, 0),
   Math.PI / 2,
 )
-const CATALOG_SHAFT_TO_ONSHAPE = new Quaternion().setFromAxisAngle(
-  new Vector3(0, 1, 0),
-  Math.PI / 2,
+const CATALOG_SHAFT_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
+  new Matrix4().set(
+    0, 0, 1, 0,
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 0, 1,
+  ),
 )
 
 export type StepPartImport = {
@@ -91,8 +95,14 @@ function matchPart(source: StepPartMetadata): Match | null {
     return { definition: catalogPart('SNDF'), param1: size }
   }
 
-  const shaft = name.match(/(?:^|\s)(\d+(?:\.\d+)?)"\s+High Strength Shaft\b/i)
-  if (shaft) return { definition: catalogPart('SHFT'), param1: 'High Strength', param2: shaft[1] }
+  const shaft = name.match(/(?:^|\s)(\d+(?:\.\d+)?)"\s+(High Strength|Standard) Shaft\b/i)
+  if (shaft) {
+    return {
+      definition: catalogPart('SHFT'),
+      param1: /^High Strength$/i.test(shaft[2]) ? 'High Strength' : 'Normal',
+      param2: shaft[1],
+    }
+  }
 
   const spacer = name.match(/\b(1\/16|1\/8|1\/4|3\/8|1\/2)"?\s+High Strength Shaft Spacer\b/i)
   if (spacer) return { definition: catalogPart('SPCR'), param1: 'High Strength', param2: `${spacer[1]}in` }
@@ -140,15 +150,17 @@ function editorPosition(position: [number, number, number], scale: number): [num
   return converted.map((value) => Math.round(value * 1e9) / 1e9) as [number, number, number]
 }
 
-function centerOnHorizontalAxes(parts: PlacedPart[]) {
+function centerOnGrid(parts: PlacedPart[]) {
   if (parts.length === 0) return
   const xs = parts.map((part) => part.position[0])
+  const ys = parts.map((part) => part.position[1])
   const zs = parts.map((part) => part.position[2])
   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+  const minY = Math.min(...ys)
   const centerZ = (Math.min(...zs) + Math.max(...zs)) / 2
 
   for (const part of parts) {
-    part.position = [part.position[0] - centerX, part.position[1], part.position[2] - centerZ]
+    part.position = [part.position[0] - centerX, part.position[1] - minY, part.position[2] - centerZ]
   }
 }
 
@@ -191,10 +203,18 @@ function alignCatalogPart(
 
   if (definition.id === 'SHFT') {
     const length = Number(param2)
-    const sourceOffset = new Vector3(Number.isFinite(length) ? length / 2 - 6 : 0, 0, 0)
+    const halfLengthDelta = Number.isFinite(length) ? length / 2 - 6 : 0
+    const highStrength = param1 === 'High Strength'
+    const sourceOffset = highStrength
+      ? new Vector3(halfLengthDelta, 0, 0)
+      : new Vector3(0, 0, -halfLengthDelta)
     return {
       position: sourceOffset.applyQuaternion(sourceRotation).add(new Vector3(...position)).toArray() as [number, number, number],
-      rotation: editorRotation(sourceRotation.clone().multiply(CATALOG_SHAFT_TO_ONSHAPE)),
+      rotation: editorRotation(
+        highStrength
+          ? sourceRotation.clone().multiply(CATALOG_SHAFT_TO_ONSHAPE)
+          : sourceRotation,
+      ),
     }
   }
 
@@ -265,6 +285,6 @@ export function stepMetadataToParts(metadata: MetadataInput): StepPartImport {
     })
   }
 
-  centerOnHorizontalAxes(parts)
+  centerOnGrid(parts)
   return { parts, skipped }
 }

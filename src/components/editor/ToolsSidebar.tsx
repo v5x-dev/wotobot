@@ -12,6 +12,7 @@ import {
   Trash2,
   Ungroup,
   Unlink2,
+  Waypoints,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -57,6 +58,8 @@ export function ToolsSidebar({
   onToggleProjection,
   showDebug,
   onToggleDebug,
+  wireframe,
+  onToggleWireframe,
   canGroup,
   onGroup,
   canUngroup,
@@ -79,6 +82,8 @@ export function ToolsSidebar({
   onToggleProjection: () => void
   showDebug: boolean
   onToggleDebug: () => void
+  wireframe: boolean
+  onToggleWireframe: () => void
   canGroup: boolean
   onGroup: () => void
   canUngroup: boolean
@@ -187,6 +192,17 @@ export function ToolsSidebar({
       >
         <Bug />
       </ToolButton>
+      {showDebug ? (
+        <ToolButton
+          label={`${wireframe ? 'Disable' : 'Enable'} wireframe view`}
+          variant={wireframe ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          aria-pressed={wireframe}
+          onClick={onToggleWireframe}
+        >
+          <Waypoints />
+        </ToolButton>
+      ) : null}
     </div>
   )
 }
