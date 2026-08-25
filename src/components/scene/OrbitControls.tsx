@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { OrbitControls as ThreeOrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { Camera } from 'three'
 import { withoutTrackpadPinchAcceleration } from './wheelNormalization'
@@ -7,6 +7,7 @@ import { withoutTrackpadPinchAcceleration } from './wheelNormalization'
 /** OrbitControls dampingFactor is a per-frame lerp, authored against 60fps. */
 const DAMPING_FPS = 60
 const MAX_DELTA = 0.1
+const CAMERA_SAVE_DELAY_MS = 120
 
 type NormalizedWheelEvent = Pick<WheelEvent, 'clientX' | 'clientY' | 'deltaY'>
 type OrbitControlsWheelInternals = {
@@ -64,6 +65,7 @@ export function OrbitControls({
   const invalidate = useThree((state) => state.invalidate)
   const explCamera = camera ?? defaultCamera
   const explDomElement = (events.connected || gl.domElement) as HTMLElement
+  const onEndRef = useRef(onEnd)
   const [controls] = useState(() => {
     const next = new ThreeOrbitControls(explCamera)
     preserveTrackpadPinchPrecision(next)
@@ -90,14 +92,26 @@ export function OrbitControls({
   }, [controls, invalidate])
 
   useEffect(() => {
-    if (!onEnd) return
-    const report = () => onEnd({
-      target: controls.target.toArray() as [number, number, number],
-      position: controls.object.position.toArray() as [number, number, number],
-    })
-    controls.addEventListener('end', report)
-    return () => controls.removeEventListener('end', report)
-  }, [controls, onEnd])
+    onEndRef.current = onEnd
+  }, [onEnd])
+
+  useEffect(() => {
+    let saveTimer: ReturnType<typeof setTimeout> | undefined
+    const scheduleSave = () => {
+      clearTimeout(saveTimer)
+      saveTimer = setTimeout(() => {
+        onEndRef.current?.({
+          target: controls.target.toArray() as [number, number, number],
+          position: controls.object.position.toArray() as [number, number, number],
+        })
+      }, CAMERA_SAVE_DELAY_MS)
+    }
+    controls.addEventListener('end', scheduleSave)
+    return () => {
+      clearTimeout(saveTimer)
+      controls.removeEventListener('end', scheduleSave)
+    }
+  }, [controls])
 
   useEffect(() => {
     if (!makeDefault) return
