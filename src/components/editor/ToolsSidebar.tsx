@@ -4,7 +4,6 @@ import {
   Copy,
   Group,
   Link2,
-  Gauge,
   MousePointer2,
   Palette,
   Scan,
@@ -55,8 +54,6 @@ export function ToolsSidebar({
   onToggleHoles,
   ortho,
   onToggleProjection,
-  lowDetail,
-  onToggleLowDetail,
   canGroup,
   onGroup,
   canUngroup,
@@ -77,8 +74,6 @@ export function ToolsSidebar({
   onToggleHoles: () => void
   ortho: boolean
   onToggleProjection: () => void
-  lowDetail: boolean
-  onToggleLowDetail: () => void
   canGroup: boolean
   onGroup: () => void
   canUngroup: boolean
@@ -177,15 +172,6 @@ export function ToolsSidebar({
         onClick={onToggleProjection}
       >
         {ortho ? <Square /> : <Box />}
-      </ToolButton>
-      <ToolButton
-        label={lowDetail ? 'Use full triangle count' : 'Use low triangle count'}
-        variant={lowDetail ? 'secondary' : 'ghost'}
-        size="icon-sm"
-        aria-pressed={lowDetail}
-        onClick={onToggleLowDetail}
-      >
-        <Gauge />
       </ToolButton>
     </div>
   )

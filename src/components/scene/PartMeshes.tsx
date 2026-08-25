@@ -827,6 +827,11 @@ function structuralGeometryKey(part: PlacedPart) {
   return `${part.key}\u0000${part.param1}\u0000${part.param2}`
 }
 
+type PendingBatchDisposal = {
+  batch: BatchedMesh
+  timer: ReturnType<typeof setTimeout>
+}
+
 function BatchedStructuralParts({
   parts,
   interactive,
@@ -900,8 +905,23 @@ function BatchedStructuralParts({
     }
     return result
   }, [geometries, geometryPlan])
+  const pendingDisposal = useRef<PendingBatchDisposal | null>(null)
 
-  useEffect(() => () => batch.dispose(), [batch])
+  useEffect(() => {
+    if (pendingDisposal.current?.batch === batch) {
+      clearTimeout(pendingDisposal.current.timer)
+      pendingDisposal.current = null
+    }
+    return () => {
+      pendingDisposal.current = {
+        batch,
+        timer: setTimeout(() => {
+          batch.dispose()
+          if (pendingDisposal.current?.batch === batch) pendingDisposal.current = null
+        }, 0),
+      }
+    }
+  }, [batch])
 
   useLayoutEffect(() => {
     const matrix = new Matrix4()

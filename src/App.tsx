@@ -16,7 +16,6 @@ import { BoxSelect } from '@/components/scene/BoxSelect'
 import { FpsCounter } from '@/components/scene/FpsCounter'
 import { InfiniteGrid } from '@/components/scene/InfiniteGrid'
 import { OrbitControls } from '@/components/scene/OrbitControls'
-import { LowDetailScene } from '@/components/scene/LowDetailScene'
 import { PlacementPreview } from '@/components/scene/PlacementPreview'
 import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
@@ -50,7 +49,6 @@ import { formatHotkey, matchesHotkey, useHotkeys } from '@/hotkeys'
 
 const DOCS_URL = 'https://protobot.web.app/'
 const CAMERA_POSITION: [number, number, number] = [5, 4, 5]
-const LOW_DETAIL_STORAGE_KEY = 'wotobot.low-detail'
 
 function TopMenu({
   icon,
@@ -187,14 +185,12 @@ function App() {
     fileSize: 0,
   })
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [lowDetail, setLowDetail] = useState(
-    () => window.localStorage.getItem(LOW_DETAIL_STORAGE_KEY) === 'true',
-  )
   const [renaming, setRenaming] = useState(false)
   const [focusToken, setFocusToken] = useState(0)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
   const drawCallLabel = useRef<HTMLDivElement>(null)
+  const performanceLabel = useRef<HTMLDivElement>(null)
   const partTrianglesLabel = useRef<HTMLDivElement>(null)
   const importAbort = useRef<AbortController | null>(null)
 
@@ -210,15 +206,14 @@ function App() {
   const setPartTrianglesLabel = useCallback((label: string) => {
     if (partTrianglesLabel.current) partTrianglesLabel.current.textContent = label
   }, [])
+  const setPerformanceLabel = useCallback((label: string) => {
+    if (performanceLabel.current) performanceLabel.current.textContent = label
+  }, [])
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
-
-  useEffect(() => {
-    window.localStorage.setItem(LOW_DETAIL_STORAGE_KEY, String(lowDetail))
-  }, [lowDetail])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -505,8 +500,6 @@ function App() {
                 onToggleHoles={editor.toggleHoles}
                 ortho={editor.ortho}
                 onToggleProjection={() => editor.setOrtho(!editor.ortho)}
-                lowDetail={lowDetail}
-                onToggleLowDetail={() => setLowDetail((value) => !value)}
                 canGroup={editor.canGroup}
                 onGroup={editor.groupSelected}
                 canUngroup={editor.canUngroup}
@@ -544,13 +537,14 @@ function App() {
                   <ChainBadge linkCount={editor.selectedChainLinkCount} />
                 ) : null}
               </div>
-              <div className="pointer-events-none absolute top-36 right-3 z-20 flex select-none flex-col items-end font-mono text-xs tabular-nums text-white/70">
+              <div className="pointer-events-none absolute top-36 right-3 z-20 flex select-none flex-col items-end rounded bg-black/45 px-2 py-1.5 font-mono text-xs leading-4 tabular-nums text-white/75 backdrop-blur-sm">
                 <div ref={fpsLabel}>0 FPS</div>
                 <div>
                   {editor.parts.length} {editor.parts.length === 1 ? 'model' : 'models'}
                 </div>
                 <div ref={triangleLabel}>0 triangles</div>
                 <div ref={drawCallLabel}>0 draw calls</div>
+                <div ref={performanceLabel} className="mt-2 whitespace-pre text-right" />
                 <div ref={partTrianglesLabel} className="mt-2 whitespace-pre text-right" />
               </div>
             </div>
@@ -569,7 +563,6 @@ function App() {
               <directionalLight position={[8, 12, 6]} intensity={0.8} />
               <CameraStateSync state={editor.camera} />
               <CameraProjection ortho={editor.ortho} />
-              <LowDetailScene enabled={lowDetail} />
               {editor.showGrid ? <InfiniteGrid /> : null}
               <SprocketChains
                 parts={editor.parts}
@@ -645,6 +638,7 @@ function App() {
                 onTriangleChange={setTriangleLabel}
                 onDrawCallChange={setDrawCallLabel}
                 onPartTrianglesChange={setPartTrianglesLabel}
+                onPerformanceChange={setPerformanceLabel}
               />
             </Canvas>
           </SidebarInset>
