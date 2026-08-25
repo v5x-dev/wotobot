@@ -86,7 +86,7 @@ export function ToolsSidebar({
   hotkeys: Hotkeys
 }) {
   return (
-    <div className="pointer-events-auto absolute top-3 left-3 z-20 flex h-fit w-fit flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-sm">
+    <div data-tutorial="tools-sidebar" className="pointer-events-auto absolute top-3 left-3 z-20 flex h-fit w-fit flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-sm">
       {TOOLS.map((item) => (
         <ToolButton
           key={item.id}
