@@ -53,7 +53,7 @@ export const PARTS: PartDefinition[] = [
     "variants": [],
     "mesh": {
       "meshName": "ANGL",
-      "fbx": "Structure/Angles.fbx",
+      "fbx": "Structure/Angles (split).fbx",
       "splitFbx": "Structure/Angles (split).fbx"
     }
   },

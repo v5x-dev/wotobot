@@ -17,11 +17,9 @@ import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
 import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
-  assembleLinearSplitGeometry,
   collectChannelPieces,
-  collectLinearSplitPieces,
   getAssembledChannelGeometry,
-  indexCatalogMeshes,
+  getAssembledLinearSplitGeometry,
 } from '@/model/channelGeometry'
 import { chainGeometry, resampleClosedPath, type SprocketChain } from '@/model/chains'
 import { eulerToQuat } from '@/model/math'
@@ -39,7 +37,6 @@ import {
 } from '@/model/parts'
 
 const SPLIT_FBX = modelUrl('Structure/C-Channels (split).fbx')
-const ANGLE_CATALOG_FBX = modelUrl('Structure/Angles.fbx')
 const ANGLE_SPLIT_FBX = modelUrl('Structure/Angles (split).fbx')
 const U_CHANNEL_SPLIT_FBX = modelUrl('Structure/U-Channels (split).fbx')
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
@@ -241,39 +238,32 @@ function AnglePart({
   holes: number
   material: MeshStandardMaterial
 }) {
-  const catalogFbx = useFBX(ANGLE_CATALOG_FBX)
   const splitFbx = useFBX(ANGLE_SPLIT_FBX)
-  const catalog = useMemo(() => indexCatalogMeshes(catalogFbx), [catalogFbx])
-  const pieces = useMemo(() => collectLinearSplitPieces(splitFbx, {
-    start: `ANGL_${size}-Start`,
-    end: `ANGL_${size}-End`,
-    mid: `ANGL_${size}-Mid`,
-    mid5Start: `ANGL_${size}-Mid5Start`,
-    mid5End: `ANGL_${size}-Mid5End`,
-  }), [size, splitFbx])
-  const geometry = catalog.get(`ANGL_${size}x${holes}`)
-  const assembled = useMemo(
-    () => geometry ? null : assembleLinearSplitGeometry(pieces, holes),
-    [geometry, holes, pieces],
+  const geometry = useMemo(
+    () => getAssembledLinearSplitGeometry(splitFbx, {
+      start: `ANGL_${size}-Start`,
+      end: `ANGL_${size}-End`,
+      mid: `ANGL_${size}-Mid`,
+      mid5Start: `ANGL_${size}-Mid5Start`,
+      mid5End: `ANGL_${size}-Mid5End`,
+    }, holes),
+    [holes, size, splitFbx],
   )
 
-  if (geometry) return <mesh geometry={geometry} material={material} />
-  if (!assembled) return <MissingPart />
-  return <mesh geometry={assembled} material={material} />
+  return <mesh geometry={geometry} material={material} />
 }
 
 function UChannelPart({ holes, material }: { holes: number; material: MeshStandardMaterial }) {
   const splitFbx = useFBX(U_CHANNEL_SPLIT_FBX)
-  const pieces = useMemo(() => collectLinearSplitPieces(splitFbx, {
-    start: 'UChannel-Start',
-    end: 'UChannel-End',
-    mid: 'UChannel-Mid',
-    mid5Start: 'UChannel-Mid5Start',
-    mid5End: 'UChannel-Mid5End',
-  }), [splitFbx])
   const geometry = useMemo(
-    () => assembleLinearSplitGeometry(pieces, holes),
-    [holes, pieces],
+    () => getAssembledLinearSplitGeometry(splitFbx, {
+      start: 'UChannel-Start',
+      end: 'UChannel-End',
+      mid: 'UChannel-Mid',
+      mid5Start: 'UChannel-Mid5Start',
+      mid5End: 'UChannel-Mid5End',
+    }, holes),
+    [holes, splitFbx],
   )
 
   return <mesh geometry={geometry} material={material} />

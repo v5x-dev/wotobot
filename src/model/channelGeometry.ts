@@ -27,6 +27,7 @@ export type LinearSplitPieces = {
 
 const channelPiecesCache = new WeakMap<Object3D, ChannelPieces>()
 const assembledChannelCache = new WeakMap<ChannelPieces[ChannelProfile], Map<number, BufferGeometry>>()
+const assembledLinearSplitCache = new WeakMap<Object3D, Map<string, BufferGeometry>>()
 
 export function isChannelProfile(value: number): value is ChannelProfile {
   return value === 2 || value === 3 || value === 5
@@ -170,6 +171,26 @@ export function collectLinearSplitPieces(
     mid5Start: pick(names.mid5Start),
     mid5End: pick(names.mid5End),
   }
+}
+
+export function getAssembledLinearSplitGeometry(
+  root: Object3D,
+  names: Record<keyof LinearSplitPieces, string>,
+  holeCount: number,
+) {
+  let geometries = assembledLinearSplitCache.get(root)
+  if (!geometries) {
+    geometries = new Map()
+    assembledLinearSplitCache.set(root, geometries)
+  }
+
+  const key = `${names.start}|${names.end}|${names.mid}|${names.mid5Start}|${names.mid5End}|${holeCount}`
+  const cached = geometries.get(key)
+  if (cached) return cached
+
+  const geometry = assembleLinearSplitGeometry(collectLinearSplitPieces(root, names), holeCount)
+  geometries.set(key, geometry)
+  return geometry
 }
 
 function missingSplitPiece(name: string): never {

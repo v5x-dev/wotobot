@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three'
+import { BufferGeometry, Float32BufferAttribute, Mesh, Vector3 } from 'three'
 import {
   assembleLinearSplitGeometry,
   assembleChannelGeometry,
   getAssembledChannelGeometry,
+  getAssembledLinearSplitGeometry,
   pieceForLinearHole,
   pieceForHole,
   withoutChannelSeamFaces,
@@ -142,5 +143,18 @@ describe('assembled channel geometry', () => {
     const geometry = assembleLinearSplitGeometry(pieces, 7)
 
     expect(geometry.getAttribute('position').count).toBe(source.getAttribute('position').count * 7)
+  })
+
+  it('reuses assembled linear geometry for matching models and hole counts', () => {
+    const root = new Mesh(geometryWithEndFaces())
+    root.name = 'piece'
+    const names = { start: 'piece', end: 'piece', mid: 'piece', mid5Start: 'piece', mid5End: 'piece' }
+
+    expect(getAssembledLinearSplitGeometry(root, names, 7)).toBe(
+      getAssembledLinearSplitGeometry(root, names, 7),
+    )
+    expect(getAssembledLinearSplitGeometry(root, names, 8)).not.toBe(
+      getAssembledLinearSplitGeometry(root, names, 7),
+    )
   })
 })
