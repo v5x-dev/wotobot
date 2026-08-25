@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatHotkey, matchesHotkey, useHotkeys } from '@/hotkeys'
@@ -207,17 +208,6 @@ function App() {
   }, [])
 
   useEffect(() => {
-    try {
-      if (!localStorage.getItem('wotobot.tutorialSeen.v1')) {
-        const id = window.setTimeout(() => setTutorialOpen(true), 600)
-        return () => window.clearTimeout(id)
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }, [])
-
-  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (!matchesHotkey(event, hotkeys.focus)) return
       const target = event.target
@@ -380,6 +370,22 @@ function App() {
                 <DropdownMenuShortcut>{formatHotkey(hotkeys.delete)}</DropdownMenuShortcut>
               </DropdownMenuItem>
             </TopMenu>
+            <TopMenu icon={<CircleHelp />} label="Help">
+              <DropdownMenuItem onSelect={() => setTutorialOpen(true)}>
+                Interactive tutorial
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setHotkeysOpen(true)}>
+                Keyboard shortcuts
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => window.open(DOCS_URL, '_blank', 'noopener,noreferrer')}
+              >
+                Documentation
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAboutOpen(true)}>About</DropdownMenuItem>
+            </TopMenu>
+            <Separator orientation="vertical" className="mx-1 h-5" />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -412,21 +418,6 @@ function App() {
                 Redo ({formatHotkey(hotkeys.redo)})
               </TooltipContent>
             </Tooltip>
-            <TopMenu icon={<CircleHelp />} label="Help">
-              <DropdownMenuItem onSelect={() => setTutorialOpen(true)}>
-                Interactive tutorial
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setHotkeysOpen(true)}>
-                Keyboard shortcuts
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => window.open(DOCS_URL, '_blank', 'noopener,noreferrer')}
-              >
-                Documentation
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setAboutOpen(true)}>About</DropdownMenuItem>
-            </TopMenu>
           </div>
           {renaming ? (
             <div className="flex w-56 items-center">

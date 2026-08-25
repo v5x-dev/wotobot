@@ -28,3 +28,4 @@ example-onshape-models/
 # Python bytecode caches
 __pycache__/
 *.py[cod]
+.env*
