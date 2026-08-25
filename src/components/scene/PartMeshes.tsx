@@ -1,9 +1,11 @@
 import { Edges, useFBX } from '@react-three/drei'
-import { Suspense, useMemo } from 'react'
+import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import {
   DoubleSide,
   ExtrudeGeometry,
   FrontSide,
+  InstancedMesh,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Path,
@@ -699,6 +701,118 @@ function sprocketValleyOffset(part: PlacedPart) {
   return 0
 }
 
+type InstancedCatalogGroup = {
+  signature: string
+  parts: PlacedPart[]
+  url: string
+  meshName: string
+  scale: number
+  modelRotation: [number, number, number]
+  metalness?: number
+}
+
+function instancedCatalogDetails(part: PlacedPart): Omit<InstancedCatalogGroup, 'signature' | 'parts'> | null {
+  const definition = findPart(part.key)
+  if (!definition || definition.id === 'SPKT') return null
+  if (definition.generator !== 'single' && definition.generator !== 'child') return null
+
+  const variant = variantFor(definition, part.param1, part.param2)
+  const fbx = variant?.fbx ?? definition.mesh?.fbx
+  if (!fbx) return null
+
+  return {
+    url: modelUrl(fbx),
+    meshName: variant?.meshName || definition.mesh?.meshName || definition.name,
+    scale: modelScaleFor(fbx),
+    modelRotation: fbx === 'pnmatics/NewRes.fbx' ? [Math.PI, 0, 0] : MODEL_ROTATION,
+    metalness: definition.id === 'TANK' ? aluminum.metalness : undefined,
+  }
+}
+
+function catalogRenderSignature(part: PlacedPart) {
+  return JSON.stringify([
+    part.key,
+    part.param1,
+    part.param2,
+    part.color ?? DEFAULT_PART_COLOR,
+    'model',
+  ])
+}
+
+function InstancedCatalogParts({
+  group,
+  interactive,
+  onSelect,
+}: {
+  group: InstancedCatalogGroup
+  interactive: boolean
+  onSelect: (id: number, additive: boolean) => void
+}) {
+  const fbx = useFBX(group.url)
+  const meshes = useMemo(() => {
+    const source = findNamedObject(fbx, group.meshName) ?? firstMesh(fbx) ?? fbx
+    const object = prepareFbxClone(
+      source,
+      'model',
+      group.modelRotation,
+      group.parts[0]?.color,
+      group.metalness,
+    )
+    object.scale.setScalar(group.scale)
+    object.updateMatrixWorld(true)
+    const result: Array<{ geometry: Mesh['geometry']; material: Mesh['material']; localMatrix: Matrix4 }> = []
+    object.traverse((child) => {
+      const mesh = child as Mesh
+      if (!mesh.isMesh) return
+      result.push({
+        geometry: mesh.geometry,
+        material: mesh.material,
+        localMatrix: mesh.matrixWorld.clone(),
+      })
+    })
+    return result
+  }, [fbx, group.meshName, group.metalness, group.modelRotation, group.parts, group.scale])
+  const refs = useRef<Array<InstancedMesh | null>>([])
+
+  useLayoutEffect(() => {
+    const partMatrix = new Matrix4()
+    const rotation = new Quaternion()
+    const position = new Vector3()
+    const scale = new Vector3(1, 1, 1)
+    for (let meshIndex = 0; meshIndex < meshes.length; meshIndex += 1) {
+      const instance = refs.current[meshIndex]
+      if (!instance) continue
+      for (let partIndex = 0; partIndex < group.parts.length; partIndex += 1) {
+        const part = group.parts[partIndex]
+        position.set(...part.position)
+        eulerToQuat(part.rotation, rotation)
+        partMatrix.compose(position, rotation, scale).multiply(meshes[meshIndex].localMatrix)
+        instance.setMatrixAt(partIndex, partMatrix)
+      }
+      instance.instanceMatrix.needsUpdate = true
+      instance.computeBoundingSphere()
+    }
+  }, [group.parts, meshes])
+
+  return (
+    <group userData={{ instancedPartIds: group.parts.map((part) => part.instanceId) }}>
+      {meshes.map((mesh, meshIndex) => (
+        <instancedMesh
+          key={meshIndex}
+          ref={(instance) => { refs.current[meshIndex] = instance }}
+          args={[mesh.geometry, mesh.material, group.parts.length]}
+          onPointerDown={(event) => {
+            if (!interactive || event.button !== 0 || event.instanceId == null) return
+            event.stopPropagation()
+            const part = group.parts[event.instanceId]
+            if (part) onSelect(part.instanceId, event.shiftKey)
+          }}
+        />
+      ))}
+    </group>
+  )
+}
+
 export function SceneParts({
   parts,
   chains,
@@ -740,9 +854,42 @@ export function SceneParts({
 }) {
   const selected = new Set(selectedIds)
   const sprocketPhases = useMemo(() => chainSprocketPhases(parts, chains), [chains, parts])
+  const { ordinaryParts, instancedGroups } = useMemo(() => {
+    const ordinary: PlacedPart[] = []
+    const candidates = new Map<string, { parts: PlacedPart[]; details: NonNullable<ReturnType<typeof instancedCatalogDetails>> }>()
+
+    for (const part of parts) {
+      const mustStayEditable = selectedIds.includes(part.instanceId)
+        || connectedIds.has(part.instanceId)
+        || part.instanceId === primaryId
+        || showHoles
+        || detectHoles
+      const details = mustStayEditable ? null : instancedCatalogDetails(part)
+      if (!details) {
+        ordinary.push(part)
+        continue
+      }
+      const signature = catalogRenderSignature(part)
+      const candidate = candidates.get(signature)
+      if (candidate) candidate.parts.push(part)
+      else candidates.set(signature, { parts: [part], details })
+    }
+
+    const groups: InstancedCatalogGroup[] = []
+    for (const [signature, candidate] of candidates) {
+      if (candidate.parts.length < 2) ordinary.push(...candidate.parts)
+      else groups.push({ signature, parts: candidate.parts, ...candidate.details })
+    }
+    return { ordinaryParts: ordinary, instancedGroups: groups }
+  }, [connectedIds, detectHoles, parts, primaryId, selectedIds, showHoles])
   return (
     <>
-      {parts.map((part) => {
+      {instancedGroups.map((group) => (
+        <Suspense key={group.signature} fallback={null}>
+          <InstancedCatalogParts group={group} interactive={interactive} onSelect={onSelect} />
+        </Suspense>
+      ))}
+      {ordinaryParts.map((part) => {
         const isSelected = selected.has(part.instanceId)
         const isConnected = connectedIds.has(part.instanceId)
         const outline = isSelected ? 'selected' : isConnected ? 'connected' : null
