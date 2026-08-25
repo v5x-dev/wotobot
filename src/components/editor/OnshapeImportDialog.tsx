@@ -18,6 +18,7 @@ type Props = {
   progress: string
   startedAt: number
   fileSize: number
+  onChooseFile: () => void
   onCancel: () => void
   onOpenChange: (open: boolean) => void
 }
@@ -30,6 +31,7 @@ export function OnshapeImportDialog({
   progress,
   startedAt,
   fileSize,
+  onChooseFile,
   onCancel,
   onOpenChange,
 }: Props) {
@@ -55,7 +57,9 @@ export function OnshapeImportDialog({
           <DialogDescription>
             {loading
               ? `${fileName} is ${fileSizeMb.toFixed(1)} MB.`
-              : 'The STEP file could not be imported.'}
+              : error
+                ? 'The STEP file could not be imported.'
+                : 'Prepare your Onshape export before choosing the STEP file.'}
           </DialogDescription>
         </DialogHeader>
         {loading ? (
@@ -75,12 +79,27 @@ export function OnshapeImportDialog({
           <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">
             {error}
           </div>
-        ) : null}
+        ) : (
+          <div className="space-y-3">
+            <p>When exporting the model from Onshape, check this export option:</p>
+            <div className="rounded-lg border bg-muted p-3 font-medium">
+              Export models oriented Y axis up
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Wotobot expects this orientation when it imports the STEP assembly.
+            </p>
+          </div>
+        )}
         {loading ? (
           <DialogFooter>
             <Button variant="outline" onClick={onCancel}>Cancel import</Button>
           </DialogFooter>
-        ) : null}
+        ) : (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={onChooseFile}>{error ? 'Choose another file' : 'Choose STEP file'}</Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

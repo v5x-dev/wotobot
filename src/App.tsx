@@ -281,6 +281,19 @@ function App() {
     }
   }
 
+  function prepareOnshapeImport() {
+    setOnshapeImport((current) => ({
+      ...current,
+      open: true,
+      fileName: '',
+      error: '',
+      loading: false,
+      progress: '',
+      startedAt: 0,
+      fileSize: 0,
+    }))
+  }
+
   function cancelOnshapeImport() {
     importAbort.current?.abort()
     importAbort.current = null
@@ -310,7 +323,7 @@ function App() {
                 <DropdownMenuShortcut>{formatHotkey(hotkeys.saveFileAs)}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void importFromOnshape()}>
+              <DropdownMenuItem onSelect={prepareOnshapeImport}>
                 Import from Onshape...
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void editor.exportParts()}>
@@ -616,6 +629,7 @@ function App() {
           progress={onshapeImport.progress}
           startedAt={onshapeImport.startedAt}
           fileSize={onshapeImport.fileSize}
+          onChooseFile={() => void importFromOnshape()}
           onCancel={cancelOnshapeImport}
           onOpenChange={(open) => {
             if (!open && onshapeImport.loading) cancelOnshapeImport()
