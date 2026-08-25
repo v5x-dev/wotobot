@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatHotkey, matchesHotkey, useHotkeys } from '@/hotkeys'
 
 const DOCS_URL = 'https://protobot.web.app/'
@@ -59,11 +59,16 @@ function TopMenu({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={label}>
-          {icon}
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={label}>
+              {icon}
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6}>{label}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="start" className="w-auto min-w-40">
         {children}
       </DropdownMenuContent>
@@ -385,24 +390,36 @@ function App() {
               </span>
             </div>
           ) : (
-            <button
-              type="button"
-              className="truncate px-3 text-sm text-muted-foreground"
-              onDoubleClick={() => setRenaming(true)}
-            >
-              {editor.fileName}
-              {editor.dirty ? '*' : ''}
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="truncate px-3 text-sm text-muted-foreground"
+                  onDoubleClick={() => setRenaming(true)}
+                >
+                  {editor.fileName}
+                  {editor.dirty ? '*' : ''}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>Double-click to rename</TooltipContent>
+            </Tooltip>
           )}
           <div className="flex items-center justify-end px-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              onClick={toggleFullscreen}
-            >
-              {isFullscreen ? <Minimize2 /> : <Maximize2 />}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                  onClick={toggleFullscreen}
+                >
+                  {isFullscreen ? <Minimize2 /> : <Maximize2 />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                {isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </header>
         <SidebarProvider defaultOpen={false} className="relative min-h-0 flex-1 overflow-hidden">

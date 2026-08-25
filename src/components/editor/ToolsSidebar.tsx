@@ -14,6 +14,7 @@ import {
   Unlink2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { COLOR_PRESETS, hexToRgb, rgbToHex } from '@/model/colors'
 import type { EditorTool } from '@/editor/useRobotEditor'
 import { formatHotkey, type Hotkeys } from '@/hotkeys'
@@ -23,6 +24,25 @@ const TOOLS: { id: EditorTool; label: string; action: keyof Hotkeys; icon: typeo
   { id: 'move', label: 'Move', action: 'moveTool', icon: Move3d },
   { id: 'color', label: 'Color', action: 'colorTool', icon: Palette },
 ]
+
+function ToolButton({
+  label,
+  children,
+  ...props
+}: React.ComponentProps<typeof Button> & { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex">
+          <Button aria-label={label} {...props}>
+            {children}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={6}>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 export function ToolsSidebar({
   tool,
@@ -68,101 +88,93 @@ export function ToolsSidebar({
   return (
     <div className="pointer-events-auto absolute top-3 left-3 z-20 flex h-fit w-fit flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-sm">
       {TOOLS.map((item) => (
-        <Button
+        <ToolButton
           key={item.id}
+          label={`${item.label} (${formatHotkey(hotkeys[item.action])})`}
           variant={tool === item.id ? 'secondary' : 'ghost'}
           size="icon-sm"
-          aria-label={`${item.label} (${formatHotkey(hotkeys[item.action])})`}
-          title={`${item.label} (${formatHotkey(hotkeys[item.action])})`}
           onClick={() => onTool(item.id)}
         >
           <item.icon />
-        </Button>
+        </ToolButton>
       ))}
       <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
-      <Button
+      <ToolButton
+        label={chainActionReason}
         variant={chainAction === 'remove' ? 'secondary' : 'ghost'}
         size="icon-sm"
         aria-label={chainAction === 'remove' ? 'Remove chain' : 'Add chain'}
-        title={chainActionReason}
         disabled={chainAction == null}
         onClick={onToggleChain}
       >
         {chainAction === 'remove' ? <Unlink2 /> : <Link2 />}
-      </Button>
+      </ToolButton>
       <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
-      <Button
+      <ToolButton
+        label={`Duplicate (${formatHotkey(hotkeys.duplicate)})`}
         variant="ghost"
         size="icon-sm"
-        aria-label="Duplicate"
-        title={`Duplicate (${formatHotkey(hotkeys.duplicate)})`}
         disabled={!hasSelection}
         onClick={onDuplicate}
       >
         <Copy />
-      </Button>
-      <Button
+      </ToolButton>
+      <ToolButton
+        label={`Delete (${formatHotkey(hotkeys.delete)})`}
         variant="ghost"
         size="icon-sm"
-        aria-label="Delete"
-        title="Delete"
         disabled={!canDelete}
         onClick={onDelete}
       >
         <Trash2 />
-      </Button>
-      <Button
+      </ToolButton>
+      <ToolButton
+        label={`Focus selection (${formatHotkey(hotkeys.focus)})`}
         variant="ghost"
         size="icon-sm"
-        aria-label="Focus"
-        title={`Focus (${formatHotkey(hotkeys.focus)})`}
         disabled={!hasSelection}
         onClick={onFocus}
       >
         <Scan />
-      </Button>
+      </ToolButton>
       <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
-      <Button
+      <ToolButton
+        label={`Group selection (${formatHotkey(hotkeys.group)})`}
         variant="ghost"
         size="icon-sm"
-        aria-label="Group"
-        title={`Group (${formatHotkey(hotkeys.group)})`}
         disabled={!canGroup}
         onClick={onGroup}
       >
         <Group />
-      </Button>
-      <Button
+      </ToolButton>
+      <ToolButton
+        label={`Ungroup selection (${formatHotkey(hotkeys.ungroup)})`}
         variant="ghost"
         size="icon-sm"
-        aria-label="Ungroup"
-        title={`Ungroup (${formatHotkey(hotkeys.ungroup)})`}
         disabled={!canUngroup}
         onClick={onUngroup}
       >
         <Ungroup />
-      </Button>
+      </ToolButton>
       <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
-      <Button
+      <ToolButton
+        label={`${showHoles ? 'Hide' : 'Show'} all holes (${formatHotkey(hotkeys.toggleHoles)})`}
         variant={showHoles ? 'secondary' : 'ghost'}
         size="icon-sm"
-        aria-label="Show all holes"
         aria-pressed={showHoles}
-        title={`Show all holes (${formatHotkey(hotkeys.toggleHoles)})`}
         onClick={onToggleHoles}
       >
         <CircleDotDashed />
-      </Button>
-      <Button
+      </ToolButton>
+      <ToolButton
+        label={`Use ${ortho ? 'perspective' : 'orthographic'} view (${formatHotkey(hotkeys.toggleProjection)})`}
         variant={ortho ? 'secondary' : 'ghost'}
         size="icon-sm"
-        aria-label={ortho ? 'Use perspective projection' : 'Use orthographic projection'}
         aria-pressed={ortho}
-        title={`${ortho ? 'Perspective' : 'Orthographic'} (${formatHotkey(hotkeys.toggleProjection)})`}
         onClick={onToggleProjection}
       >
         {ortho ? <Square /> : <Box />}
-      </Button>
+      </ToolButton>
     </div>
   )
 }
@@ -179,14 +191,18 @@ export function ColorSwatches({
       <p className="mb-2 text-xs font-medium">Color</p>
       <div className="grid grid-cols-7 gap-1">
         {COLOR_PRESETS.map((preset) => (
-          <button
-            key={preset.name}
-            type="button"
-            title={preset.name}
-            className="size-5 rounded-sm border border-black/20"
-            style={{ background: rgbToHex(preset.rgb) }}
-            onClick={() => onChange(preset.name === 'Default' ? null : preset.rgb)}
-          />
+          <Tooltip key={preset.name}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Set color to ${preset.name}`}
+                className="size-5 rounded-sm border border-black/20"
+                style={{ background: rgbToHex(preset.rgb) }}
+                onClick={() => onChange(preset.name === 'Default' ? null : preset.rgb)}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>{preset.name}</TooltipContent>
+          </Tooltip>
         ))}
       </div>
       <label className="mt-2 flex items-center gap-2 text-xs">
