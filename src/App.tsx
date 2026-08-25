@@ -1,6 +1,6 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import { GizmoHelper, GizmoViewport } from '@react-three/drei'
-import { CircleHelp, File, Maximize2, Minimize2, Pencil } from 'lucide-react'
+import { CircleHelp, File, Maximize2, Minimize2, Pencil, Redo2, Undo2 } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
 import { AddSidebar } from '@/components/editor/AddSidebar'
@@ -380,6 +380,38 @@ function App() {
                 <DropdownMenuShortcut>{formatHotkey(hotkeys.delete)}</DropdownMenuShortcut>
               </DropdownMenuItem>
             </TopMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Undo"
+                  disabled={!editor.canUndo}
+                  onClick={() => editor.undo()}
+                >
+                  <Undo2 />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                Undo ({formatHotkey(hotkeys.undo)})
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Redo"
+                  disabled={!editor.canRedo}
+                  onClick={() => editor.redo()}
+                >
+                  <Redo2 />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                Redo ({formatHotkey(hotkeys.redo)})
+              </TooltipContent>
+            </Tooltip>
             <TopMenu icon={<CircleHelp />} label="Help">
               <DropdownMenuItem onSelect={() => setTutorialOpen(true)}>
                 Interactive tutorial
@@ -451,7 +483,7 @@ function App() {
             </Tooltip>
           </div>
         </header>
-        <SidebarProvider defaultOpen={false} className="relative min-h-0 flex-1 overflow-hidden">
+        <SidebarProvider defaultOpen className="relative min-h-0 flex-1 overflow-hidden">
           <SidebarInset data-tutorial="scene" className="relative h-full min-h-0 min-w-0 overflow-hidden p-0">
             <div data-slot="scene-hud">
               <ToolsSidebar
