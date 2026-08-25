@@ -1,4 +1,4 @@
-import { useFBX } from '@react-three/drei'
+import { Edges, useFBX } from '@react-three/drei'
 import { Suspense, useMemo } from 'react'
 import {
   DoubleSide,
@@ -27,6 +27,7 @@ import {
 import { chainGeometry, resampleClosedPath, type SprocketChain } from '@/model/chains'
 import { eulerToQuat } from '@/model/math'
 import { modelScaleFor } from '@/model/modelScale'
+import { loadingBoxForPart } from '@/model/loadingBounds'
 import { DEFAULT_COLOR } from '@/model/colors'
 import {
   channelProfileFromSize,
@@ -360,6 +361,17 @@ function MissingPart() {
   return (
     <mesh material={missing}>
       <boxGeometry args={[0.5, 0.5, 0.5]} />
+    </mesh>
+  )
+}
+
+export function ModelLoadingPlaceholder({ part }: { part?: PlacedPart }) {
+  const box = loadingBoxForPart(part)
+  return (
+    <mesh raycast={noopRaycast} position={box.position}>
+      <boxGeometry args={box.size} />
+      <meshBasicMaterial color="#3EA6FF" transparent opacity={0.08} depthWrite={false} />
+      <Edges color="#3EA6FF" lineWidth={1.5} />
     </mesh>
   )
 }
@@ -767,7 +779,7 @@ export function SceneParts({
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
           >
-            <Suspense>
+            <Suspense fallback={<ModelLoadingPlaceholder part={part} />}>
               <PlacedPartMesh
                 part={part}
                 showHoles={showHoles}
@@ -781,6 +793,3 @@ export function SceneParts({
     </>
   )
 }
-
-useFBX.preload(CATALOG_FBX)
-useFBX.preload(SPLIT_FBX)

@@ -1,10 +1,10 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { BufferGeometry, DoubleSide, Group, Plane, Quaternion, Vector3, type Object3D } from 'three'
 import { snapVec3 } from '@/model/grid'
 import { eulerToQuat, quatToEuler } from '@/model/math'
 import { holeFaceFromHit, snapPlacement, type HoleFace } from '@/model/placementSnap'
-import { PlacedPartMesh } from './SceneParts'
+import { ModelLoadingPlaceholder, PlacedPartMesh } from './SceneParts'
 import type { PlacedPart } from '@/model/parts'
 import type { HoleTemplate } from '@/model/holes'
 
@@ -243,7 +243,9 @@ export function PlacementPreview({
   return (
     <>
       <group ref={groupRef} userData={{ preview: true }}>
-        <PlacedPartMesh part={part} preview />
+        <Suspense fallback={<ModelLoadingPlaceholder part={part} />}>
+          <PlacedPartMesh part={part} preview />
+        </Suspense>
       </group>
       <group ref={faceRef} visible={false}>
         <mesh renderOrder={30} raycast={() => {}}>

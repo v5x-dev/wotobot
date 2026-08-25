@@ -1,1 +1,5 @@
-export { PlacedPartMesh, SceneParts } from './PartMeshes'
+export {
+  ModelLoadingPlaceholder,
+  PlacedPartMesh,
+  SceneParts,
+} from './PartMeshes'
