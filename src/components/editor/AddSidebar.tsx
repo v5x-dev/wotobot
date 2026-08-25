@@ -131,12 +131,7 @@ export function AddSidebar({
           aria-label="Search parts"
         />
       </SidebarHeader>
-      <Popover
-        open={placing}
-        onOpenChange={(next) => {
-          if (!next && placing) onStopPlacing()
-        }}
-      >
+      <Popover open={placing}>
         <SidebarContent>
           {PARTS_BY_GROUP.map(({ groupName, items }, groupIndex) => {
             const visible = items.filter((part) => matchesSearch(part, search))
