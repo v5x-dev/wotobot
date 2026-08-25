@@ -1,6 +1,9 @@
 import { Edges, useFBX } from '@react-three/drei'
-import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
+import type { ThreeEvent } from '@react-three/fiber'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import {
+  BatchedMesh,
+  type BufferGeometry,
   DoubleSide,
   ExtrudeGeometry,
   FrontSide,
@@ -813,6 +816,121 @@ function InstancedCatalogParts({
   )
 }
 
+function isBatchableStructure(part: PlacedPart) {
+  if (part.color) return false
+  const definition = findPart(part.key)
+  return definition?.generator === 'aluminum'
+    && (definition.id === 'CCHL' || definition.id === 'ANGL' || definition.id === 'UCHL')
+}
+
+function structuralGeometryKey(part: PlacedPart) {
+  return `${part.key}\u0000${part.param1}\u0000${part.param2}`
+}
+
+function BatchedStructuralParts({
+  parts,
+  interactive,
+  onSelect,
+}: {
+  parts: PlacedPart[]
+  interactive: boolean
+  onSelect: (id: number, additive: boolean) => void
+}) {
+  const channelFbx = useFBX(SPLIT_FBX)
+  const angleFbx = useFBX(ANGLE_SPLIT_FBX)
+  const uChannelFbx = useFBX(U_CHANNEL_SPLIT_FBX)
+  const channelPieces = useMemo(() => collectChannelPieces(channelFbx), [channelFbx])
+  const geometryPlan = JSON.stringify(parts.map((part) => [part.instanceId, part.key, part.param1, part.param2]))
+  const geometries = useMemo(() => {
+    const result = new Map<string, BufferGeometry>()
+    const specs = JSON.parse(geometryPlan) as Array<[number, string, string, string]>
+    for (const [, partKey, param1, param2] of specs) {
+      const part = { key: partKey, param1, param2 } as PlacedPart
+      const key = structuralGeometryKey(part)
+      if (result.has(key)) continue
+      const definition = findPart(part.key)
+      if (definition?.id === 'CCHL') {
+        result.set(
+          key,
+          getAssembledChannelGeometry(
+            channelPieces[channelProfileFromSize(part.param1)],
+            Number(part.param2) || 15,
+          ),
+        )
+      } else if (definition?.id === 'ANGL') {
+        const size = part.param1
+        result.set(key, getAssembledLinearSplitGeometry(angleFbx, {
+          start: `ANGL_${size}-Start`,
+          end: `ANGL_${size}-End`,
+          mid: `ANGL_${size}-Mid`,
+          mid5Start: `ANGL_${size}-Mid5Start`,
+          mid5End: `ANGL_${size}-Mid5End`,
+        }, Number(part.param2) || 5))
+      } else if (definition?.id === 'UCHL') {
+        result.set(key, getAssembledLinearSplitGeometry(uChannelFbx, {
+          start: 'UChannel-Start',
+          end: 'UChannel-End',
+          mid: 'UChannel-Mid',
+          mid5Start: 'UChannel-Mid5Start',
+          mid5End: 'UChannel-Mid5End',
+        }, Number(part.param2) || 20))
+      }
+    }
+    return result
+  }, [angleFbx, channelPieces, geometryPlan, uChannelFbx])
+  const batch = useMemo(() => {
+    let vertexCount = 0
+    let indexCount = 0
+    for (const geometry of geometries.values()) {
+      vertexCount += geometry.attributes.position.count
+      indexCount += geometry.index?.count ?? geometry.attributes.position.count
+    }
+    const specs = JSON.parse(geometryPlan) as Array<[number, string, string, string]>
+    const result = new BatchedMesh(specs.length, vertexCount, indexCount, aluminum)
+    result.name = 'Batched structural parts'
+    result.userData.partIds = [] as number[]
+    const geometryIds = new Map<string, number>()
+    for (const [key, geometry] of geometries) geometryIds.set(key, result.addGeometry(geometry))
+    for (const [instanceId, partKey, param1, param2] of specs) {
+      const part = { key: partKey, param1, param2 } as PlacedPart
+      const geometryId = geometryIds.get(structuralGeometryKey(part))
+      if (geometryId == null) continue
+      const batchId = result.addInstance(geometryId)
+      result.userData.partIds[batchId] = instanceId
+    }
+    return result
+  }, [geometries, geometryPlan])
+
+  useEffect(() => () => batch.dispose(), [batch])
+
+  useLayoutEffect(() => {
+    const matrix = new Matrix4()
+    const rotation = new Quaternion()
+    const position = new Vector3()
+    const scale = new Vector3(1, 1, 1)
+    for (let batchId = 0; batchId < parts.length; batchId += 1) {
+      const part = parts[batchId]
+      position.set(...part.position)
+      eulerToQuat(part.rotation, rotation)
+      matrix.compose(position, rotation, scale)
+      batch.setMatrixAt(batchId, matrix)
+    }
+    batch.computeBoundingSphere()
+  }, [batch, parts])
+
+  return (
+    <primitive
+      object={batch}
+      onPointerDown={(event: ThreeEvent<PointerEvent>) => {
+        if (!interactive || event.button !== 0 || event.batchId == null) return
+        event.stopPropagation()
+        const id = batch.userData.partIds[event.batchId] as number | undefined
+        if (id != null) onSelect(id, event.shiftKey)
+      }}
+    />
+  )
+}
+
 export function SceneParts({
   parts,
   chains,
@@ -854,8 +972,9 @@ export function SceneParts({
 }) {
   const selected = new Set(selectedIds)
   const sprocketPhases = useMemo(() => chainSprocketPhases(parts, chains), [chains, parts])
-  const { ordinaryParts, instancedGroups } = useMemo(() => {
+  const { ordinaryParts, instancedGroups, batchedParts } = useMemo(() => {
     const ordinary: PlacedPart[] = []
+    const batched: PlacedPart[] = []
     const candidates = new Map<string, { parts: PlacedPart[]; details: NonNullable<ReturnType<typeof instancedCatalogDetails>> }>()
 
     for (const part of parts) {
@@ -865,6 +984,10 @@ export function SceneParts({
         || showHoles
         || detectHoles
       const details = mustStayEditable ? null : instancedCatalogDetails(part)
+      if (!mustStayEditable && isBatchableStructure(part)) {
+        batched.push(part)
+        continue
+      }
       if (!details) {
         ordinary.push(part)
         continue
@@ -880,7 +1003,12 @@ export function SceneParts({
       if (candidate.parts.length < 2) ordinary.push(...candidate.parts)
       else groups.push({ signature, parts: candidate.parts, ...candidate.details })
     }
-    return { ordinaryParts: ordinary, instancedGroups: groups }
+    if (batched.length < 2) ordinary.push(...batched)
+    return {
+      ordinaryParts: ordinary,
+      instancedGroups: groups,
+      batchedParts: batched.length >= 2 ? batched : [],
+    }
   }, [connectedIds, detectHoles, parts, primaryId, selectedIds, showHoles])
   return (
     <>
@@ -889,6 +1017,11 @@ export function SceneParts({
           <InstancedCatalogParts group={group} interactive={interactive} onSelect={onSelect} />
         </Suspense>
       ))}
+      {batchedParts.length > 0 && (
+        <Suspense fallback={null}>
+          <BatchedStructuralParts parts={batchedParts} interactive={interactive} onSelect={onSelect} />
+        </Suspense>
+      )}
       {ordinaryParts.map((part) => {
         const isSelected = selected.has(part.instanceId)
         const isConnected = connectedIds.has(part.instanceId)
