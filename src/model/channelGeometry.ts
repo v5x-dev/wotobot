@@ -26,7 +26,7 @@ export type LinearSplitPieces = {
 }
 
 const channelPiecesCache = new WeakMap<Object3D, ChannelPieces>()
-const assembledChannelCache = new WeakMap<ChannelPieces[ChannelProfile], Map<number, BufferGeometry>>()
+const assembledChannelCache = new WeakMap<ChannelPieces[ChannelProfile], Map<string, BufferGeometry>>()
 const assembledLinearSplitCache = new WeakMap<Object3D, Map<string, BufferGeometry>>()
 
 export function isChannelProfile(value: number): value is ChannelProfile {
@@ -41,12 +41,13 @@ export function pieceForHole(
   pieces: ChannelPieces[ChannelProfile],
   hole: number,
   holeCount: number,
+  useMid5 = true,
 ): { geometry: BufferGeometry; flip: boolean } {
   if (holeCount === 1) return { geometry: pieces.single, flip: false }
   if (hole === 1) return { geometry: pieces.endcap, flip: false }
   if (hole === holeCount) return { geometry: pieces.endcap, flip: true }
-  if (hole % 5 === 0) return { geometry: pieces.mid5, flip: false }
-  if (hole % 5 === 1) return { geometry: pieces.mid5, flip: true }
+  if (useMid5 && hole % 5 === 0) return { geometry: pieces.mid5, flip: false }
+  if (useMid5 && hole % 5 === 1) return { geometry: pieces.mid5, flip: true }
   return { geometry: pieces.mid, flip: true }
 }
 
@@ -84,9 +85,10 @@ export function withoutChannelSeamFaces(source: BufferGeometry, keepNegativeEnd 
 export function assembleChannelGeometry(
   pieces: ChannelPieces[ChannelProfile],
   holeCount: number,
+  useMid5 = true,
 ) {
   const transformed = Array.from({ length: holeCount }, (_, index) => {
-    const { geometry: source, flip } = pieceForHole(pieces, index + 1, holeCount)
+    const { geometry: source, flip } = pieceForHole(pieces, index + 1, holeCount, useMid5)
     const geometry = source.clone()
     if (flip) geometry.rotateZ(Math.PI)
     geometry.translate(holeX(index, holeCount), 0, 0)
@@ -101,6 +103,7 @@ export function assembleChannelGeometry(
 export function getAssembledChannelGeometry(
   pieces: ChannelPieces[ChannelProfile],
   holeCount: number,
+  useMid5 = true,
 ) {
   let geometries = assembledChannelCache.get(pieces)
   if (!geometries) {
@@ -108,11 +111,12 @@ export function getAssembledChannelGeometry(
     assembledChannelCache.set(pieces, geometries)
   }
 
-  const cached = geometries.get(holeCount)
+  const key = `${holeCount}|${useMid5}`
+  const cached = geometries.get(key)
   if (cached) return cached
 
-  const geometry = assembleChannelGeometry(pieces, holeCount)
-  geometries.set(holeCount, geometry)
+  const geometry = assembleChannelGeometry(pieces, holeCount, useMid5)
+  geometries.set(key, geometry)
   return geometry
 }
 
@@ -120,20 +124,22 @@ export function pieceForLinearHole(
   pieces: LinearSplitPieces,
   hole: number,
   holeCount: number,
+  useMid5 = true,
 ) {
   if (hole === 1) return pieces.end
   if (hole === holeCount) return pieces.start
-  if (hole % 5 === 0) return pieces.mid5End
-  if (hole % 5 === 1) return pieces.mid5Start
+  if (useMid5 && hole % 5 === 0) return pieces.mid5End
+  if (useMid5 && hole % 5 === 1) return pieces.mid5Start
   return pieces.mid
 }
 
 export function assembleLinearSplitGeometry(
   pieces: LinearSplitPieces,
   holeCount: number,
+  useMid5 = true,
 ) {
   const transformed = Array.from({ length: holeCount }, (_, index) => {
-    const geometry = pieceForLinearHole(pieces, index + 1, holeCount).clone()
+    const geometry = pieceForLinearHole(pieces, index + 1, holeCount, useMid5).clone()
     geometry.translate(holeX(index, holeCount), 0, 0)
     return geometry
   })
@@ -177,6 +183,7 @@ export function getAssembledLinearSplitGeometry(
   root: Object3D,
   names: Record<keyof LinearSplitPieces, string>,
   holeCount: number,
+  useMid5 = true,
 ) {
   let geometries = assembledLinearSplitCache.get(root)
   if (!geometries) {
@@ -184,11 +191,11 @@ export function getAssembledLinearSplitGeometry(
     assembledLinearSplitCache.set(root, geometries)
   }
 
-  const key = `${names.start}|${names.end}|${names.mid}|${names.mid5Start}|${names.mid5End}|${holeCount}`
+  const key = `${names.start}|${names.end}|${names.mid}|${names.mid5Start}|${names.mid5End}|${holeCount}|${useMid5}`
   const cached = geometries.get(key)
   if (cached) return cached
 
-  const geometry = assembleLinearSplitGeometry(collectLinearSplitPieces(root, names), holeCount)
+  const geometry = assembleLinearSplitGeometry(collectLinearSplitPieces(root, names), holeCount, useMid5)
   geometries.set(key, geometry)
   return geometry
 }

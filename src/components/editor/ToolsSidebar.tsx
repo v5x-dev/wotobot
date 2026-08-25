@@ -1,5 +1,6 @@
 import {
   Box,
+  Bug,
   CircleDotDashed,
   Copy,
   Group,
@@ -54,6 +55,8 @@ export function ToolsSidebar({
   onToggleHoles,
   ortho,
   onToggleProjection,
+  showDebug,
+  onToggleDebug,
   canGroup,
   onGroup,
   canUngroup,
@@ -74,6 +77,8 @@ export function ToolsSidebar({
   onToggleHoles: () => void
   ortho: boolean
   onToggleProjection: () => void
+  showDebug: boolean
+  onToggleDebug: () => void
   canGroup: boolean
   onGroup: () => void
   canUngroup: boolean
@@ -172,6 +177,15 @@ export function ToolsSidebar({
         onClick={onToggleProjection}
       >
         {ortho ? <Square /> : <Box />}
+      </ToolButton>
+      <ToolButton
+        label={`${showDebug ? 'Hide' : 'Show'} debug overlay`}
+        variant={showDebug ? 'secondary' : 'ghost'}
+        size="icon-sm"
+        aria-pressed={showDebug}
+        onClick={onToggleDebug}
+      >
+        <Bug />
       </ToolButton>
     </div>
   )

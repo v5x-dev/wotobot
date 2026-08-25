@@ -4,7 +4,12 @@ import { BufferGeometry, DoubleSide, Group, Plane, Quaternion, Vector3, type Obj
 import { snapVec3 } from '@/model/grid'
 import { eulerToQuat, quatToEuler } from '@/model/math'
 import { holeFaceFromHit, snapPlacement, type HoleFace } from '@/model/placementSnap'
-import { ModelLoadingPlaceholder, PlacedPartMesh } from './SceneParts'
+import {
+  isPartVisible,
+  ModelLoadingPlaceholder,
+  PlacedPartMesh,
+  type PartVisibilitySettings,
+} from './SceneParts'
 import type { PlacedPart } from '@/model/parts'
 import type { HoleTemplate } from '@/model/holes'
 
@@ -47,6 +52,7 @@ export function PlacementPreview({
   debugHoles,
   onPlace,
   onRotation,
+  visibility,
 }: {
   part: PlacedPart | null
   parts: PlacedPart[]
@@ -59,6 +65,7 @@ export function PlacementPreview({
     pending: Pick<PlacedPart, 'key' | 'param1' | 'param2' | 'shape'>,
   ) => void
   onRotation: (rotation: [number, number, number]) => void
+  visibility?: PartVisibilitySettings
 }) {
   const groupRef = useRef<Group>(null)
   const partRef = useRef(part)
@@ -250,7 +257,7 @@ export function PlacementPreview({
     }
   }, [invalidate])
 
-  if (!part) return null
+  if (!part || (visibility && !isPartVisible(part, visibility))) return null
 
   return (
     <>

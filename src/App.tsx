@@ -21,6 +21,7 @@ import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
 import { useRobotEditor } from '@/editor/useRobotEditor'
 import { AXIS_COLORS } from '@/model/colors'
+import { PART_GROUPS, type PartGroup } from '@/model/parts'
 import { stemName, type CameraState } from '@/persistence/document'
 import { isAbortError, openStepFile } from '@/persistence/fileIO'
 import { convertStepToMetadata } from '@/persistence/onshapeImport'
@@ -75,6 +76,33 @@ function TopMenu({
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+function RenderToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <label className="flex size-7 cursor-pointer items-center justify-center rounded-md hover:bg-accent">
+          <input
+            type="checkbox"
+            checked={checked}
+            aria-label={label}
+            className="size-4 cursor-pointer accent-foreground"
+            onChange={(event) => onChange(event.target.checked)}
+          />
+        </label>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6}>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -185,14 +213,21 @@ function App() {
     fileSize: 0,
   })
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [partVisibility, setPartVisibility] = useState<Record<PartGroup, boolean>>(() =>
+    Object.fromEntries(PART_GROUPS.map((group) => [group, true])) as Record<PartGroup, boolean>,
+  )
   const [renaming, setRenaming] = useState(false)
   const [focusToken, setFocusToken] = useState(0)
+  const [showDebug, setShowDebug] = useState(false)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
   const drawCallLabel = useRef<HTMLDivElement>(null)
   const performanceLabel = useRef<HTMLDivElement>(null)
   const partTrianglesLabel = useRef<HTMLDivElement>(null)
   const importAbort = useRef<AbortController | null>(null)
+  const setPartGroupVisible = useCallback((group: PartGroup, visible: boolean) => {
+    setPartVisibility((current) => ({ ...current, [group]: visible }))
+  }, [])
 
   const setFpsLabel = useCallback((label: string) => {
     if (fpsLabel.current) fpsLabel.current.textContent = label
@@ -467,7 +502,17 @@ function App() {
               <TooltipContent side="bottom" sideOffset={6}>Double-click to rename</TooltipContent>
             </Tooltip>
           )}
-          <div className="flex items-center justify-end px-2">
+          <div className="flex items-center justify-end gap-1 px-2">
+            {showDebug
+              ? PART_GROUPS.map((group) => (
+                  <RenderToggle
+                    key={group}
+                    label={`Render ${group}`}
+                    checked={partVisibility[group]}
+                    onChange={(checked) => setPartGroupVisible(group, checked)}
+                  />
+                ))
+              : null}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -500,6 +545,8 @@ function App() {
                 onToggleHoles={editor.toggleHoles}
                 ortho={editor.ortho}
                 onToggleProjection={() => editor.setOrtho(!editor.ortho)}
+                showDebug={showDebug}
+                onToggleDebug={() => setShowDebug((visible) => !visible)}
                 canGroup={editor.canGroup}
                 onGroup={editor.groupSelected}
                 canUngroup={editor.canUngroup}
@@ -537,7 +584,7 @@ function App() {
                   <ChainBadge linkCount={editor.selectedChainLinkCount} />
                 ) : null}
               </div>
-              <div className="pointer-events-none absolute top-36 right-3 z-20 flex select-none flex-col items-end rounded bg-black/45 px-2 py-1.5 font-mono text-xs leading-4 tabular-nums text-white/75 backdrop-blur-sm">
+              {showDebug ? <div className="pointer-events-none absolute top-36 right-3 z-20 flex select-none flex-col items-end rounded bg-black/45 px-2 py-1.5 font-mono text-xs leading-4 tabular-nums text-white/75 backdrop-blur-sm">
                 <div ref={fpsLabel}>0 FPS</div>
                 <div>
                   {editor.parts.length} {editor.parts.length === 1 ? 'model' : 'models'}
@@ -546,15 +593,14 @@ function App() {
                 <div ref={drawCallLabel}>0 draw calls</div>
                 <div ref={performanceLabel} className="mt-2 whitespace-pre text-right" />
                 <div ref={partTrianglesLabel} className="mt-2 whitespace-pre text-right" />
-              </div>
+              </div> : null}
             </div>
             <Canvas
               data-tutorial="scene"
               data-slot="scene"
               className={`h-full w-full bg-background${editor.placingPart ? ' cursor-crosshair' : ''}`}
               camera={{ position: CAMERA_POSITION, fov: 70, near: 0.1, far: 2000 }}
-              frameloop="always"
-              dpr={[1, 1.25]}
+              frameloop="demand"
               gl={{ alpha: true, stencil: true }}
               onPointerMissed={editor.onPointerMissed}
               onContextMenu={(event) => event.preventDefault()}
@@ -586,6 +632,7 @@ function App() {
                 onTransformLive={editor.previewPartTransform}
                 onMoveStart={editor.onMoveStart}
                 onMoveEnd={editor.onMoveEnd}
+                visibility={partVisibility}
               />
               <Suspense>
                 <PlacementPreview
@@ -605,6 +652,7 @@ function App() {
                   debugHoles={editor.showHoles}
                   onPlace={editor.placeAt}
                   onRotation={editor.updatePlacingRotation}
+                  visibility={partVisibility}
                 />
               </Suspense>
               <OrbitControls

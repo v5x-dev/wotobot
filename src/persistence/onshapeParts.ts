@@ -140,6 +140,18 @@ function editorPosition(position: [number, number, number], scale: number): [num
   return converted.map((value) => Math.round(value * 1e9) / 1e9) as [number, number, number]
 }
 
+function centerOnHorizontalAxes(parts: PlacedPart[]) {
+  if (parts.length === 0) return
+  const xs = parts.map((part) => part.position[0])
+  const zs = parts.map((part) => part.position[2])
+  const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+  const centerZ = (Math.min(...zs) + Math.max(...zs)) / 2
+
+  for (const part of parts) {
+    part.position = [part.position[0] - centerX, part.position[1], part.position[2] - centerZ]
+  }
+}
+
 function sourceQuaternion(source: StepPartMetadata) {
   if (source.basis) {
     const [m00, m01, m02, m10, m11, m12, m20, m21, m22] = source.basis
@@ -253,5 +265,6 @@ export function stepMetadataToParts(metadata: MetadataInput): StepPartImport {
     })
   }
 
+  centerOnHorizontalAxes(parts)
   return { parts, skipped }
 }

@@ -20,6 +20,7 @@ import {
 } from 'three'
 import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
+import type { PartTriangleTotals } from './partTriangles'
 import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
   collectChannelPieces,
@@ -38,6 +39,7 @@ import {
   pointInPolygon,
   polycarbonateOutline,
   variantFor,
+  type PartGroup,
   type PlacedPart,
 } from '@/model/parts'
 
@@ -46,6 +48,21 @@ const ANGLE_SPLIT_FBX = modelUrl('Structure/Angles (split).fbx')
 const U_CHANNEL_SPLIT_FBX = modelUrl('Structure/U-Channels (split).fbx')
 const MODEL_ROTATION: [number, number, number] = [0, 0, 0]
 const DEFAULT_PART_COLOR = DEFAULT_COLOR
+
+export type PartVisibilitySettings = Record<PartGroup, boolean>
+
+const DEFAULT_PART_VISIBILITY: PartVisibilitySettings = {
+  Structure: true,
+  Motion: true,
+  Electronics: true,
+  Pneumatics: true,
+  Competition: true,
+}
+
+export function isPartVisible(part: PlacedPart, visibility: PartVisibilitySettings) {
+  const group = findPart(part.key)?.group
+  return group ? visibility[group] : true
+}
 
 const aluminum = new MeshStandardMaterial({
   color: '#F2F2F2',
@@ -190,16 +207,18 @@ function AssembledChannel({
   profile,
   holes,
   material,
+  useMid5,
 }: {
   pieces: ReturnType<typeof collectChannelPieces>
   profile: ReturnType<typeof channelProfileFromSize>
   holes: number
   material: MeshStandardMaterial
+  useMid5: boolean
 }) {
   const profilePieces = pieces[profile]
   const geometry = useMemo(
-    () => getAssembledChannelGeometry(profilePieces, holes),
-    [holes, profilePieces],
+    () => getAssembledChannelGeometry(profilePieces, holes, useMid5),
+    [holes, profilePieces, useMid5],
   )
 
   return (
@@ -215,10 +234,12 @@ function ChannelPart({
   size,
   holes,
   material,
+  useMid5,
 }: {
   size: string
   holes: number
   material: MeshStandardMaterial
+  useMid5: boolean
 }) {
   const splitFbx = useFBX(SPLIT_FBX)
   const pieces = useMemo(() => collectChannelPieces(splitFbx), [splitFbx])
@@ -230,6 +251,7 @@ function ChannelPart({
       profile={profile}
       holes={holes}
       material={material}
+      useMid5={useMid5}
     />
   )
 }
@@ -238,10 +260,12 @@ function AnglePart({
   size,
   holes,
   material,
+  useMid5,
 }: {
   size: string
   holes: number
   material: MeshStandardMaterial
+  useMid5: boolean
 }) {
   const splitFbx = useFBX(ANGLE_SPLIT_FBX)
   const geometry = useMemo(
@@ -251,14 +275,22 @@ function AnglePart({
       mid: `ANGL_${size}-Mid`,
       mid5Start: `ANGL_${size}-Mid5Start`,
       mid5End: `ANGL_${size}-Mid5End`,
-    }, holes),
-    [holes, size, splitFbx],
+    }, holes, useMid5),
+    [holes, size, splitFbx, useMid5],
   )
 
   return <mesh geometry={geometry} material={material} />
 }
 
-function UChannelPart({ holes, material }: { holes: number; material: MeshStandardMaterial }) {
+function UChannelPart({
+  holes,
+  material,
+  useMid5,
+}: {
+  holes: number
+  material: MeshStandardMaterial
+  useMid5: boolean
+}) {
   const splitFbx = useFBX(U_CHANNEL_SPLIT_FBX)
   const geometry = useMemo(
     () => getAssembledLinearSplitGeometry(splitFbx, {
@@ -267,8 +299,8 @@ function UChannelPart({ holes, material }: { holes: number; material: MeshStanda
       mid: 'UChannel-Mid',
       mid5Start: 'UChannel-Mid5Start',
       mid5End: 'UChannel-Mid5End',
-    }, holes),
-    [holes, splitFbx],
+    }, holes, useMid5),
+    [holes, splitFbx, useMid5],
   )
 
   return <mesh geometry={geometry} material={material} />
@@ -542,7 +574,7 @@ export function PlacedPartMesh({
     const holeCount = Number(part.param2) || 15
     return (
       <>
-        <ChannelPart size={part.param1} holes={holeCount} material={material} />
+        <ChannelPart size={part.param1} holes={holeCount} material={material} useMid5 />
         {holes}
       </>
     )
@@ -552,7 +584,7 @@ export function PlacedPartMesh({
     const holeCount = Number(part.param2) || 5
     return (
       <>
-        <AnglePart size={part.param1} holes={holeCount} material={material} />
+        <AnglePart size={part.param1} holes={holeCount} material={material} useMid5 />
         {holes}
       </>
     )
@@ -562,7 +594,7 @@ export function PlacedPartMesh({
     const holeCount = Number(part.param2) || 20
     return (
       <>
-        <UChannelPart holes={holeCount} material={material} />
+        <UChannelPart holes={holeCount} material={material} useMid5 />
         {holes}
       </>
     )
@@ -798,7 +830,12 @@ function InstancedCatalogParts({
   }, [group.parts, meshes])
 
   return (
-    <group userData={{ instancedPartIds: group.parts.map((part) => part.instanceId) }}>
+    <group
+      userData={{
+        instancedPartIds: group.parts.map((part) => part.instanceId),
+        partKind: findPart(group.parts[0].key)?.name ?? group.parts[0].key,
+      }}
+    >
       {meshes.map((mesh, meshIndex) => (
         <instancedMesh
           key={meshIndex}
@@ -860,6 +897,7 @@ function BatchedStructuralParts({
           getAssembledChannelGeometry(
             channelPieces[channelProfileFromSize(part.param1)],
             Number(part.param2) || 15,
+            true,
           ),
         )
       } else if (definition?.id === 'ANGL') {
@@ -870,7 +908,7 @@ function BatchedStructuralParts({
           mid: `ANGL_${size}-Mid`,
           mid5Start: `ANGL_${size}-Mid5Start`,
           mid5End: `ANGL_${size}-Mid5End`,
-        }, Number(part.param2) || 5))
+        }, Number(part.param2) || 5, true))
       } else if (definition?.id === 'UCHL') {
         result.set(key, getAssembledLinearSplitGeometry(uChannelFbx, {
           start: 'UChannel-Start',
@@ -878,7 +916,7 @@ function BatchedStructuralParts({
           mid: 'UChannel-Mid',
           mid5Start: 'UChannel-Mid5Start',
           mid5End: 'UChannel-Mid5End',
-        }, Number(part.param2) || 20))
+        }, Number(part.param2) || 20, true))
       }
     }
     return result
@@ -894,6 +932,7 @@ function BatchedStructuralParts({
     const result = new BatchedMesh(specs.length, vertexCount, indexCount, aluminum)
     result.name = 'Batched structural parts'
     result.userData.partIds = [] as number[]
+    const partTriangleTotals: PartTriangleTotals = {}
     const geometryIds = new Map<string, number>()
     for (const [key, geometry] of geometries) geometryIds.set(key, result.addGeometry(geometry))
     for (const [instanceId, partKey, param1, param2] of specs) {
@@ -902,7 +941,12 @@ function BatchedStructuralParts({
       if (geometryId == null) continue
       const batchId = result.addInstance(geometryId)
       result.userData.partIds[batchId] = instanceId
+      const geometry = geometries.get(structuralGeometryKey(part))
+      const triangles = Math.floor((geometry?.index?.count ?? geometry?.attributes.position.count ?? 0) / 3)
+      const name = findPart(part.key)?.name ?? part.key
+      partTriangleTotals[name] = (partTriangleTotals[name] ?? 0) + triangles
     }
+    result.userData.partTriangleTotals = partTriangleTotals
     return result
   }, [geometries, geometryPlan])
   const pendingDisposal = useRef<PendingBatchDisposal | null>(null)
@@ -966,6 +1010,7 @@ export function SceneParts({
   onTransformLive,
   onMoveStart,
   onMoveEnd,
+  visibility = DEFAULT_PART_VISIBILITY,
 }: {
   parts: PlacedPart[]
   chains: SprocketChain[]
@@ -989,6 +1034,7 @@ export function SceneParts({
   ) => void
   onMoveStart: () => void
   onMoveEnd: () => void
+  visibility?: PartVisibilitySettings
 }) {
   const selected = new Set(selectedIds)
   const sprocketPhases = useMemo(() => chainSprocketPhases(parts, chains), [chains, parts])
@@ -998,6 +1044,7 @@ export function SceneParts({
     const candidates = new Map<string, { parts: PlacedPart[]; details: NonNullable<ReturnType<typeof instancedCatalogDetails>> }>()
 
     for (const part of parts) {
+      if (!isPartVisible(part, visibility)) continue
       const mustStayEditable = selectedIds.includes(part.instanceId)
         || connectedIds.has(part.instanceId)
         || part.instanceId === primaryId
@@ -1029,7 +1076,7 @@ export function SceneParts({
       instancedGroups: groups,
       batchedParts: batched.length >= 2 ? batched : [],
     }
-  }, [connectedIds, detectHoles, parts, primaryId, selectedIds, showHoles])
+  }, [connectedIds, detectHoles, parts, primaryId, selectedIds, showHoles, visibility])
   return (
     <>
       {instancedGroups.map((group) => (
@@ -1039,7 +1086,11 @@ export function SceneParts({
       ))}
       {batchedParts.length > 0 && (
         <Suspense fallback={null}>
-          <BatchedStructuralParts parts={batchedParts} interactive={interactive} onSelect={onSelect} />
+          <BatchedStructuralParts
+            parts={batchedParts}
+            interactive={interactive}
+            onSelect={onSelect}
+          />
         </Suspense>
       )}
       {ordinaryParts.map((part) => {

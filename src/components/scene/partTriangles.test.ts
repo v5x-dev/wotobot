@@ -60,4 +60,19 @@ describe('part triangle overlay', () => {
     ])
     expect(formatPartTriangleOverlay(stats)).toBe('C-Channels: 100 tris\nReservoirs: 20 tris')
   })
+
+  it('counts annotated batched parts alongside instanced part groups', () => {
+    const material = new MeshBasicMaterial()
+    const root = new Group()
+    const instances = partGroup('Motor', new InstancedMesh(triangles(12), material, 3))
+    const batch = new Mesh(triangles(100), material)
+    batch.userData.partTriangleTotals = { 'C-Channel': 40, Angle: 20 }
+    root.add(instances, batch)
+
+    expect(collectPartTriangles(root)).toEqual([
+      { name: 'C-Channel', triangles: 40 },
+      { name: 'Motor', triangles: 36 },
+      { name: 'Angle', triangles: 20 },
+    ])
+  })
 })

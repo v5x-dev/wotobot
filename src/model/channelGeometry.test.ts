@@ -71,6 +71,24 @@ describe('assembled channel geometry', () => {
     ])
   })
 
+  it('uses regular mid pieces when Mid5 is disabled', () => {
+    const endcap = new BufferGeometry()
+    const mid = new BufferGeometry()
+    const mid5 = new BufferGeometry()
+    const single = new BufferGeometry()
+    const pieces = { single, endcap, mid, mid5 } satisfies ChannelPieces[2]
+
+    expect(Array.from({ length: 7 }, (_, index) => pieceForHole(pieces, index + 1, 7, false).geometry)).toEqual([
+      endcap,
+      mid,
+      mid,
+      mid,
+      mid,
+      mid,
+      endcap,
+    ])
+  })
+
   it('preserves normals while merging fallback geometry', () => {
     const source = geometryWithEndFaces()
     source.computeVertexNormals()
@@ -127,6 +145,29 @@ describe('assembled channel geometry', () => {
       mid,
       mid5End,
       mid5Start,
+      start,
+    ])
+  })
+
+  it('uses regular mid pieces in other split model families when Mid5 is disabled', () => {
+    const start = new BufferGeometry()
+    const end = new BufferGeometry()
+    const mid = new BufferGeometry()
+    const pieces = {
+      start,
+      end,
+      mid,
+      mid5Start: new BufferGeometry(),
+      mid5End: new BufferGeometry(),
+    } satisfies LinearSplitPieces
+
+    expect(Array.from({ length: 7 }, (_, index) => pieceForLinearHole(pieces, index + 1, 7, false))).toEqual([
+      end,
+      mid,
+      mid,
+      mid,
+      mid,
+      mid,
       start,
     ])
   })

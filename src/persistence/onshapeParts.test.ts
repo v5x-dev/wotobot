@@ -26,12 +26,16 @@ describe('stepMetadataToParts', () => {
     const result = stepMetadataToParts(metadata)
     expect(result.parts).toHaveLength(10)
     expect(result.parts[0]).toMatchObject({ key: 'Structure:CCHL:C-Channel', param1: '1x3', param2: '20' })
-    expect(result.parts[0]).toMatchObject({ position: [1, 2.052, -2] })
+    expect(result.parts[0].position[0]).toBeCloseTo(0.975)
+    expect(result.parts[0].position[1]).toBeCloseTo(2.052)
+    expect(result.parts[0].position[2]).toBeCloseTo(-0.625)
     expect(result.parts[0].rotation[0]).toBeCloseTo(Math.PI / 2)
     expect(result.parts[0].rotation[1]).toBeCloseTo(0)
     expect(result.parts[0].rotation[2]).toBeCloseTo(-Math.PI / 2)
     expect(result.parts[1]).toMatchObject({ key: 'Electronics:MOTR:Motor', param1: '11W' })
-    expect(result.parts[1].position).toEqual([1, 2, 3])
+    expect(result.parts[1].position[0]).toBeCloseTo(0.975)
+    expect(result.parts[1].position[1]).toBeCloseTo(2)
+    expect(result.parts[1].position[2]).toBeCloseTo(4.375)
     expect(result.parts[1].rotation[0]).toBeCloseTo(0)
     expect(result.parts[1].rotation[1]).toBeCloseTo(0)
     expect(result.parts[1].rotation[2]).toBeCloseTo(0)
@@ -40,13 +44,13 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[4]).toMatchObject({ key: 'Motion:OMNI:Omni Wheel', param1: 'V2', param2: '2.75in' })
     expect(result.parts[5]).toMatchObject({ key: 'Electronics:SNSR:Sensor', param1: 'Rotation', param2: 'V5' })
     expect(result.parts[6]).toMatchObject({ key: 'Structure:ANGL:Angle', param1: '2x2', param2: '5' })
-    expect(result.parts[6].position[0]).toBeCloseTo(0.1576)
+    expect(result.parts[6].position[0]).toBeCloseTo(0.1326)
     expect(result.parts[6].position[1]).toBeCloseTo(0.046)
-    expect(result.parts[6].position[2]).toBeCloseTo(-1.002568)
+    expect(result.parts[6].position[2]).toBeCloseTo(0.372432)
     expect(result.parts[7]).toMatchObject({ key: 'Motion:SHFT:Shaft', param1: 'High Strength', param2: '10.1' })
-    expect(result.parts[7].position[0]).toBeCloseTo(-0.95)
+    expect(result.parts[7].position[0]).toBeCloseTo(-0.975)
     expect(result.parts[7].position[1]).toBeCloseTo(0)
-    expect(result.parts[7].position[2]).toBeCloseTo(0)
+    expect(result.parts[7].position[2]).toBeCloseTo(1.375)
     const shaftAxis = new Vector3(0, 0, 1).applyEuler(new Euler(...result.parts[7].rotation))
     expect(shaftAxis.x).toBeCloseTo(1)
     expect(shaftAxis.y).toBeCloseTo(0)
@@ -54,5 +58,21 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[8]).toMatchObject({ key: 'Motion:CLMP:Shaft Collar', param1: 'Normal', param2: 'Normal' })
     expect(result.parts[9]).toMatchObject({ key: 'Motion:SPCR:Spacer', param1: 'High Strength', param2: '1/16in' })
     expect(result.skipped.map((part) => part.name)).toEqual(['Part 1'])
+  })
+
+  it('centers imported positions on the x and z axes without changing height', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: '1', productId: 'motor-a', name: 'V5 Smart Motor', kind: 'part', path: [], position: [10, 4, 20], rotation: [0, 0, 0] },
+        { instanceId: '2', productId: 'motor-b', name: 'V5 Smart Motor', kind: 'part', path: [], position: [14, 8, 26], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.parts.map((part) => part.position)).toEqual([
+      [-2, 4, -3],
+      [2, 8, 3],
+    ])
   })
 })

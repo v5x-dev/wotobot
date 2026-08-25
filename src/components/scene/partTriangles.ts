@@ -5,6 +5,8 @@ export type PartTriangleStat = {
   triangles: number
 }
 
+export type PartTriangleTotals = Record<string, number>
+
 function isMesh(object: Object3D): object is Mesh {
   return (object as Mesh).isMesh
 }
@@ -56,6 +58,13 @@ export function formatTris(count: number) {
 export function collectPartTriangles(root: Object3D) {
   const totals = new Map<string, number>()
   root.traverse((object) => {
+    const recordedTotals = object.userData.partTriangleTotals as PartTriangleTotals | undefined
+    if (recordedTotals) {
+      for (const [name, triangles] of Object.entries(recordedTotals)) {
+        totals.set(name, (totals.get(name) ?? 0) + triangles)
+      }
+      return
+    }
     if (!isMesh(object) || skipMesh(object)) return
     const kind = partKindOf(object)
     if (!kind) return
