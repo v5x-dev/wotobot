@@ -368,6 +368,15 @@ function MissingPart() {
   )
 }
 
+export function ModelLoadingPlaceholder() {
+  return (
+    <mesh raycast={noopRaycast}>
+      <boxGeometry args={[0.75, 0.75, 0.75]} />
+      <meshBasicMaterial color="#3EA6FF" transparent opacity={0.75} wireframe />
+    </mesh>
+  )
+}
+
 function SprocketPart({
   part,
   isPreview,
@@ -771,7 +780,7 @@ export function SceneParts({
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
           >
-            <Suspense>
+            <Suspense fallback={<ModelLoadingPlaceholder />}>
               <PlacedPartMesh
                 part={part}
                 showHoles={showHoles}
@@ -785,6 +794,3 @@ export function SceneParts({
     </>
   )
 }
-
-useFBX.preload(CATALOG_FBX)
-useFBX.preload(SPLIT_FBX)

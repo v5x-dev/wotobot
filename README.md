@@ -39,7 +39,7 @@ npm ci
 npm run check
 ```
 
-Deploy the generated `dist/` directory as a static site. Keep the directory structure intact because the editor loads its FBX models from `dist/protobot-models/` at runtime. The production output is about 113 MB, mostly model assets, so use a host that supports long-lived caching and compression.
+Deploy the generated `dist/` directory as a static site. Keep the directory structure intact because the editor lazy-loads each FBX model from `dist/protobot-models/` when a design first uses it. The production output is about 113 MB, mostly model assets, so use a host that supports long-lived caching.
 
 ## Keyboard shortcuts
 
