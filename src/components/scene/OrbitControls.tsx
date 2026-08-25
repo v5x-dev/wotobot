@@ -2,10 +2,24 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { OrbitControls as ThreeOrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { Camera } from 'three'
+import { withoutTrackpadPinchAcceleration } from './wheelNormalization'
 
 /** OrbitControls dampingFactor is a per-frame lerp, authored against 60fps. */
 const DAMPING_FPS = 60
 const MAX_DELTA = 0.1
+
+type NormalizedWheelEvent = Pick<WheelEvent, 'clientX' | 'clientY' | 'deltaY'>
+type OrbitControlsWheelInternals = {
+  _customWheelEvent: (event: WheelEvent) => NormalizedWheelEvent
+}
+
+function preserveTrackpadPinchPrecision(controls: ThreeOrbitControls) {
+  const internals = controls as unknown as OrbitControlsWheelInternals
+  const normalizeWheelEvent = internals._customWheelEvent.bind(controls)
+  internals._customWheelEvent = (event) => (
+    normalizeWheelEvent(withoutTrackpadPinchAcceleration(event))
+  )
+}
 
 function setCamera(controls: ThreeOrbitControls, camera: Camera) {
   controls.object = camera
@@ -50,7 +64,11 @@ export function OrbitControls({
   const invalidate = useThree((state) => state.invalidate)
   const explCamera = camera ?? defaultCamera
   const explDomElement = (events.connected || gl.domElement) as HTMLElement
-  const [controls] = useState(() => new ThreeOrbitControls(explCamera))
+  const [controls] = useState(() => {
+    const next = new ThreeOrbitControls(explCamera)
+    preserveTrackpadPinchPrecision(next)
+    return next
+  })
 
   useLayoutEffect(() => {
     setCamera(controls, explCamera)
