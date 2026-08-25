@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Quaternion, Vector3 } from 'three'
 import { effectiveGraph, unionConnected } from '@/model/connections'
 import {
@@ -33,7 +33,8 @@ import {
   type FileSystemFileHandle,
 } from '@/persistence/fileIO'
 import { eulerToQuat, quatToEuler } from '@/model/math'
-import { hotkeyUsesKey, matchesHotkey, type Hotkeys } from '@/hotkeys'
+import type { Hotkeys } from '@/hotkeys'
+import { useEditorHotkeys, type EditorCommands } from './useEditorHotkeys'
 import {
   clonePolycarbonateShape,
   defaultPolycarbonateShape,
@@ -83,13 +84,6 @@ function explainError(error: unknown, fallback: string) {
   if (error instanceof SyntaxError) return 'That file is not valid JSON.'
   if (error instanceof Error && error.message) return error.message
   return fallback
-}
-
-function isTypingTarget(target: EventTarget | null) {
-  return (
-    target instanceof HTMLElement &&
-    Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
-  )
 }
 
 const _quat = new Quaternion()
@@ -174,7 +168,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   const toolRef = useRef(tool)
   const colorRef = useRef(color)
   const activeTransformRef = useRef<Snapshot | null>(null)
-  const commandsRef = useRef({
+  const commandsRef = useRef<EditorCommands>({
     hasSelection: false,
     canDelete: false,
     canPaste: false,
@@ -192,12 +186,9 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     selectAll: () => {},
     groupSelected: () => {},
     ungroupSelected: () => {},
-    canGroup: false,
-    canUngroup: false,
     stopPlacing: () => {},
     startMoveSelection: () => {},
     setTool: (_tool: EditorTool) => {},
-    toggleFlip: () => {},
     toggleRotatePlacement: () => {},
     toggleHoles: () => {},
     toggleGrid: () => {},
@@ -922,12 +913,9 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     selectAll,
     groupSelected,
     ungroupSelected,
-    canGroup: selectedIds.length > 1,
-    canUngroup: parts.some((part) => selectedIds.includes(part.instanceId) && part.groupId),
     stopPlacing,
     startMoveSelection,
     setTool: chooseTool,
-    toggleFlip: () => setFlipHole((value) => !value),
     toggleRotatePlacement: () => setRotatingPlacement((value) => !value),
     toggleHoles,
     toggleGrid: () => setShowGrid((value) => !value),
@@ -942,161 +930,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     }
   })
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return
-      const cmd = commandsRef.current
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        cmd.stopPlacing()
-        setRotatingPlacement(false)
-        return
-      }
-
-      if (isTypingTarget(event.target)) return
-
-      if (matchesHotkey(event, hotkeys.flipPlacement)) {
-        event.preventDefault()
-        setFlipHole(true)
-        return
-      }
-
-      if (matchesHotkey(event, hotkeys.delete)) {
-        if (cmd.canDelete) {
-          event.preventDefault()
-          cmd.deleteSelected()
-        }
-        return
-      }
-
-      if (matchesHotkey(event, hotkeys.rotatePlacement) && cmd.placing) {
-        event.preventDefault()
-        cmd.toggleRotatePlacement()
-        return
-      }
-
-      if (matchesHotkey(event, hotkeys.toggleHoles)) {
-        event.preventDefault()
-        cmd.toggleHoles()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.toggleGrid)) {
-        event.preventDefault()
-        cmd.toggleGrid()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.toggleProjection)) {
-        event.preventDefault()
-        cmd.toggleOrtho()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.transformTool)) {
-        event.preventDefault()
-        cmd.setTool('transform')
-        return
-      }
-      if (matchesHotkey(event, hotkeys.moveTool)) {
-        event.preventDefault()
-        cmd.setTool('move')
-        return
-      }
-      if (matchesHotkey(event, hotkeys.colorTool)) {
-        event.preventDefault()
-        cmd.setTool('color')
-        return
-      }
-
-      if (matchesHotkey(event, hotkeys.moveSelection)) {
-        if (cmd.hasSelection) cmd.startMoveSelection()
-        event.preventDefault()
-        return
-      }
-
-      if (matchesHotkey(event, hotkeys.newFile)) {
-        event.preventDefault()
-        cmd.newFile()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.openFile)) {
-        event.preventDefault()
-        void cmd.openFile()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.saveFileAs)) {
-        event.preventDefault()
-        void cmd.saveFileAs()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.saveFile)) {
-        event.preventDefault()
-        void cmd.saveFile()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.selectAll)) {
-        event.preventDefault()
-        cmd.selectAll()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.duplicate) && cmd.hasSelection) {
-        event.preventDefault()
-        cmd.duplicate()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.ungroup)) {
-        event.preventDefault()
-        cmd.ungroupSelected()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.group)) {
-        event.preventDefault()
-        cmd.groupSelected()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.redo)) {
-        event.preventDefault()
-        cmd.redo()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.undo)) {
-        event.preventDefault()
-        cmd.undo()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.cut) && cmd.hasSelection) {
-        event.preventDefault()
-        cmd.cut()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.copy) && cmd.hasSelection) {
-        event.preventDefault()
-        cmd.copy()
-        return
-      }
-      if (matchesHotkey(event, hotkeys.paste) && cmd.canPaste) {
-        event.preventDefault()
-        cmd.paste()
-      }
-    }
-
-    function onKeyUp(event: KeyboardEvent) {
-      if (hotkeyUsesKey(event, hotkeys.flipPlacement)) setFlipHole(false)
-    }
-
-    function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (serializeDocument(partsRef.current, camera, chainsRef.current) === savedJson) return
-      event.preventDefault()
-      event.returnValue = ''
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
-      window.removeEventListener('beforeunload', onBeforeUnload)
-    }
-  }, [camera, hotkeys, savedJson])
+  useEditorHotkeys(hotkeys, commandsRef, setFlipHole, setRotatingPlacement, dirty)
 
   return {
     parts,
