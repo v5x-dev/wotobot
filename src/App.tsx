@@ -16,6 +16,7 @@ import { BoxSelect } from '@/components/scene/BoxSelect'
 import { FpsCounter } from '@/components/scene/FpsCounter'
 import { InfiniteGrid } from '@/components/scene/InfiniteGrid'
 import { OrbitControls } from '@/components/scene/OrbitControls'
+import { LowDetailScene } from '@/components/scene/LowDetailScene'
 import { PlacementPreview } from '@/components/scene/PlacementPreview'
 import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
@@ -49,6 +50,7 @@ import { formatHotkey, matchesHotkey, useHotkeys } from '@/hotkeys'
 
 const DOCS_URL = 'https://protobot.web.app/'
 const CAMERA_POSITION: [number, number, number] = [5, 4, 5]
+const LOW_DETAIL_STORAGE_KEY = 'wotobot.low-detail'
 
 function TopMenu({
   icon,
@@ -185,6 +187,9 @@ function App() {
     fileSize: 0,
   })
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [lowDetail, setLowDetail] = useState(
+    () => window.localStorage.getItem(LOW_DETAIL_STORAGE_KEY) === 'true',
+  )
   const [renaming, setRenaming] = useState(false)
   const [focusToken, setFocusToken] = useState(0)
   const fpsLabel = useRef<HTMLDivElement>(null)
@@ -210,6 +215,10 @@ function App() {
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(LOW_DETAIL_STORAGE_KEY, String(lowDetail))
+  }, [lowDetail])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -496,6 +505,8 @@ function App() {
                 onToggleHoles={editor.toggleHoles}
                 ortho={editor.ortho}
                 onToggleProjection={() => editor.setOrtho(!editor.ortho)}
+                lowDetail={lowDetail}
+                onToggleLowDetail={() => setLowDetail((value) => !value)}
                 canGroup={editor.canGroup}
                 onGroup={editor.groupSelected}
                 canUngroup={editor.canUngroup}
@@ -558,6 +569,7 @@ function App() {
               <directionalLight position={[8, 12, 6]} intensity={0.8} />
               <CameraStateSync state={editor.camera} />
               <CameraProjection ortho={editor.ortho} />
+              <LowDetailScene enabled={lowDetail} />
               {editor.showGrid ? <InfiniteGrid /> : null}
               <SprocketChains
                 parts={editor.parts}
