@@ -12,6 +12,8 @@ A browser-based 3D CAD for prototyping VEX-style robots. Built with React, TypeS
 - **Documents** — designs save as `.wbb` files; export the parts list as text
 - **Build constraints** — live total weight readout and polycarbonate budget warnings
 
+> New here? Open **Help → Interactive tutorial** in the app for a guided, highlight-driven tour — or read the [written tutorial](docs/TUTORIAL.md). Both cover placing parts, transform/move/color, sprocket chains, saving, Onshape STEP import, and how this project differs from `../../contrib/Protobot-Rebuilt`.
+
 ## Getting started
 
 ```sh

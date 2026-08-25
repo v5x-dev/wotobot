@@ -121,7 +121,7 @@ export function AddSidebar({
   }
 
   return (
-    <Sidebar side="right" collapsible="icon">
+    <Sidebar side="right" collapsible="icon" data-tutorial="parts-catalog">
       <Popover
         open={placing}
         onOpenChange={(next) => {

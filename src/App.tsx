@@ -11,6 +11,7 @@ import { ColorSwatches, ToolsSidebar } from '@/components/editor/ToolsSidebar'
 import { PolycarbonateBadge } from '@/components/editor/PolycarbonateBadge'
 import { ChainBadge } from '@/components/editor/ChainBadge'
 import { WeightBadge } from '@/components/editor/WeightBadge'
+import { TutorialOverlay } from '@/components/tutorial/TutorialOverlay'
 import { BoxSelect } from '@/components/scene/BoxSelect'
 import { FpsCounter } from '@/components/scene/FpsCounter'
 import { InfiniteGrid } from '@/components/scene/InfiniteGrid'
@@ -172,6 +173,7 @@ function App() {
   const editor = useRobotEditor(hotkeys)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [hotkeysOpen, setHotkeysOpen] = useState(false)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
   const [onshapeImport, setOnshapeImport] = useState({
     open: false,
     fileName: '',
@@ -202,6 +204,17 @@ function App() {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('wotobot.tutorialSeen.v1')) {
+        const id = window.setTimeout(() => setTutorialOpen(true), 600)
+        return () => window.clearTimeout(id)
+      }
+    } catch {
+      // ignore storage errors
+    }
   }, [])
 
   useEffect(() => {
@@ -277,7 +290,7 @@ function App() {
   return (
     <TooltipProvider>
       <div className="flex h-svh flex-col overflow-hidden">
-        <header className="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-sidebar-border bg-sidebar">
+        <header data-tutorial="top-bar" className="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-sidebar-border bg-sidebar">
           <div className="flex items-center gap-0.5 px-2">
             <TopMenu icon={<File />} label="File">
               <DropdownMenuItem onSelect={() => editor.newFile()}>
@@ -355,6 +368,9 @@ function App() {
               </DropdownMenuItem>
             </TopMenu>
             <TopMenu icon={<CircleHelp />} label="Help">
+              <DropdownMenuItem onSelect={() => setTutorialOpen(true)}>
+                Interactive tutorial
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setHotkeysOpen(true)}>
                 Keyboard shortcuts
               </DropdownMenuItem>
@@ -423,7 +439,7 @@ function App() {
           </div>
         </header>
         <SidebarProvider defaultOpen={false} className="relative min-h-0 flex-1 overflow-hidden">
-          <SidebarInset className="relative h-full min-h-0 min-w-0 overflow-hidden p-0">
+          <SidebarInset data-tutorial="scene" className="relative h-full min-h-0 min-w-0 overflow-hidden p-0">
             <div data-slot="scene-hud">
               <ToolsSidebar
                 tool={editor.tool}
@@ -467,7 +483,7 @@ function App() {
                   editor.updatePartShape(editor.primaryId, shape, width, height)
                 }}
               />
-              <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+              <div data-tutorial="weight-badge" className="pointer-events-none absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
                 <WeightBadge parts={editor.parts} />
                 <PolycarbonateBadge parts={editor.parts} />
                 {editor.selectedChainId != null ? (
@@ -484,6 +500,7 @@ function App() {
               </div>
             </div>
             <Canvas
+              data-tutorial="scene"
               data-slot="scene"
               className={`h-full w-full bg-background${editor.placingPart ? ' cursor-crosshair' : ''}`}
               camera={{ position: CAMERA_POSITION, fov: 50, near: 0.3, far: 2000 }}
@@ -612,6 +629,7 @@ function App() {
           onChange={setHotkey}
           onReset={resetHotkeys}
         />
+        <TutorialOverlay open={tutorialOpen} onOpenChange={setTutorialOpen} editor={editor} />
       </div>
     </TooltipProvider>
   )

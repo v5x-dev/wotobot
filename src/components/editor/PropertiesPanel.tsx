@@ -59,7 +59,7 @@ export function PropertiesPanel({
   const robotReasons = polyStatus?.over ? polycarbonateBudgetReasons(polyStatus) : []
 
   return (
-    <div className={`pointer-events-auto absolute bottom-8 left-3 z-20 h-fit rounded-md border border-sidebar-border bg-sidebar/90 p-3 text-xs ${isPolycarbonate ? 'w-64' : 'w-56'}`}>
+    <div data-tutorial="properties-panel" className={`pointer-events-auto absolute bottom-8 left-3 z-20 h-fit rounded-md border border-sidebar-border bg-sidebar/90 p-3 text-xs ${isPolycarbonate ? 'w-64' : 'w-56'}`}>
       <p className="mb-2 font-medium">Current selection</p>
       <div className="grid gap-1.5">
         <div className="grid grid-cols-3 gap-1">
