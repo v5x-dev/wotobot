@@ -156,15 +156,9 @@ export function TutorialOverlay({
             </Button>
           </div>
 
-          {/* Progress */}
+          {/* Progress — single segmented indicator */}
           <div className="px-4 pt-3">
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
-              />
-            </div>
-            <div className="mt-2 flex gap-1">
+            <div className="flex gap-1">
               {steps.map((s, idx) => (
                 <button
                   key={s.id}
