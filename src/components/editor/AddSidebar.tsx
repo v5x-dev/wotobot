@@ -21,6 +21,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -122,6 +123,14 @@ export function AddSidebar({
 
   return (
     <Sidebar side="right" collapsible="icon" data-tutorial="parts-catalog">
+      <SidebarHeader className="group-data-[collapsible=icon]:hidden">
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search..."
+          aria-label="Search parts"
+        />
+      </SidebarHeader>
       <Popover
         open={placing}
         onOpenChange={(next) => {
@@ -129,14 +138,6 @@ export function AddSidebar({
         }}
       >
         <SidebarContent>
-          <div className="p-2 group-data-[collapsible=icon]:hidden">
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search..."
-              aria-label="Search parts"
-            />
-          </div>
           {PARTS_BY_GROUP.map(({ groupName, items }, groupIndex) => {
             const visible = items.filter((part) => matchesSearch(part, search))
             if (visible.length === 0) return null
