@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LoaderCircle } from 'lucide-react'
+import { Check, LoaderCircle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -51,15 +51,15 @@ export function OnshapeImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
+      <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Onshape import</DialogTitle>
+          <DialogTitle>Import from Onshape</DialogTitle>
           <DialogDescription>
             {loading
               ? `${fileName} is ${fileSizeMb.toFixed(1)} MB.`
               : error
                 ? 'The STEP file could not be imported.'
-                : 'Prepare your Onshape export before choosing the STEP file.'}
+                : 'Before exporting your STEP file, turn on:'}
           </DialogDescription>
         </DialogHeader>
         {loading ? (
@@ -80,14 +80,9 @@ export function OnshapeImportDialog({
             {error}
           </div>
         ) : (
-          <div className="space-y-3">
-            <p>When exporting the model from Onshape, check this export option:</p>
-            <div className="rounded-lg border bg-muted p-3 font-medium">
-              Export models oriented Y axis up
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Wotobot expects this orientation when it imports the STEP assembly.
-            </p>
+          <div className="flex items-center gap-2 rounded-lg border bg-muted px-3 py-2.5 font-medium">
+            <Check aria-hidden="true" className="size-4 shrink-0" />
+            <span>Export models oriented Y axis up</span>
           </div>
         )}
         {loading ? (
