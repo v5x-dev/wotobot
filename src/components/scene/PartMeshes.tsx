@@ -654,7 +654,7 @@ export function PlacedPartMesh({
         url={modelUrl(fbx)}
         meshName={meshName}
         scale={modelScale}
-        rotation={MODEL_ROTATION}
+        rotation={fbx === 'pnmatics/NewRes.fbx' ? [Math.PI, 0, 0] : MODEL_ROTATION}
         finish={isPreview ? 'model-preview' : 'model'}
         color={part.color}
       />

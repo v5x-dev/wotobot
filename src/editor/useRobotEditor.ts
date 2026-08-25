@@ -33,6 +33,7 @@ import {
   type FileSystemFileHandle,
 } from '@/persistence/fileIO'
 import { eulerToQuat, quatToEuler } from '@/model/math'
+import { cameraForImportedParts } from '@/model/importCamera'
 import type { Hotkeys } from '@/hotkeys'
 import { useEditorHotkeys, type EditorCommands } from './useEditorHotkeys'
 import {
@@ -690,6 +691,18 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     setPrimaryId(ids.at(-1) ?? null)
   }, [])
 
+  const selectSamePartType = useCallback(() => {
+    const id = primaryIdRef.current ?? selectedIdsRef.current.at(-1)
+    const source = partsRef.current.find((part) => part.instanceId === id)
+    if (!source) return
+    const ids = partsRef.current
+      .filter((part) => part.key === source.key)
+      .map((part) => part.instanceId)
+    setSelectedIds(ids)
+    setSelectedChainId(null)
+    setPrimaryId(source.instanceId)
+  }, [])
+
   const groupSelected = useCallback(() => {
     if (selectedIdsRef.current.length < 2) return
     pushHistory()
@@ -782,29 +795,11 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   const importParts = useCallback((nextParts: PlacedPart[], name: string) => {
     if (!confirmDiscard()) return false
-    const min: [number, number, number] = [Infinity, Infinity, Infinity]
-    const max: [number, number, number] = [-Infinity, -Infinity, -Infinity]
-    for (const part of nextParts) {
-      for (let axis = 0; axis < 3; axis += 1) {
-        min[axis] = Math.min(min[axis], part.position[axis])
-        max[axis] = Math.max(max[axis], part.position[axis])
-      }
-    }
-    const target = nextParts.length === 0
-      ? [0, 0, 0] as [number, number, number]
-      : min.map((value, axis) => (value + max[axis]) / 2) as [number, number, number]
-    const frontSpan = nextParts.length === 0
-      ? 10
-      : Math.max(max[0] - min[0], max[1] - min[1], 10)
-    const camera = {
-      ortho: true,
-      target,
-      position: [target[0], target[1], target[2] + frontSpan * 2.5] as [number, number, number],
-    }
-    loadParts(nextParts, [], `${stemName(name)}.wbb`, null, camera)
+    const importCamera = cameraForImportedParts(nextParts, camera)
+    loadParts(nextParts, [], `${stemName(name)}.wbb`, null, importCamera)
     setSavedJson(serializeDocument([], DEFAULT_CAMERA, []))
     return true
-  }, [confirmDiscard, loadParts])
+  }, [camera, confirmDiscard, loadParts])
 
   const openFile = useCallback(async () => {
     if (!confirmDiscard()) return
@@ -961,7 +956,18 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       setCamera((current) => ({ ...current, ortho: next }))
     },
     camera,
-    setCamera,
+    setCamera: (next: CameraState) => {
+      setCamera((current) => {
+        if (
+          current.ortho === next.ortho &&
+          sameVec3(current.position, next.position) &&
+          sameVec3(current.target, next.target)
+        ) {
+          return current
+        }
+        return next
+      })
+    },
     startPlacing,
     updatePlacing,
     updatePlacingRotation,
@@ -997,6 +1003,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     paste,
     duplicate,
     selectAll,
+    selectSamePartType,
     groupSelected,
     ungroupSelected,
     canGroup: selectedIds.length > 1,

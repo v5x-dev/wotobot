@@ -350,6 +350,9 @@ function App() {
                 Select All
                 <DropdownMenuShortcut>{formatHotkey(hotkeys.selectAll)}</DropdownMenuShortcut>
               </DropdownMenuItem>
+              <DropdownMenuItem disabled={!editor.hasSelection} onSelect={() => editor.selectSamePartType()}>
+                Select Same Part Type
+              </DropdownMenuItem>
               <DropdownMenuItem disabled={!editor.canGroup} onSelect={() => editor.groupSelected()}>
                 Group
                 <DropdownMenuShortcut>{formatHotkey(hotkeys.group)}</DropdownMenuShortcut>
@@ -539,8 +542,8 @@ function App() {
               data-tutorial="scene"
               data-slot="scene"
               className={`h-full w-full bg-background${editor.placingPart ? ' cursor-crosshair' : ''}`}
-              camera={{ position: CAMERA_POSITION, fov: 50, near: 0.3, far: 2000 }}
-              frameloop="demand"
+              camera={{ position: CAMERA_POSITION, fov: 70, near: 0.1, far: 2000 }}
+              frameloop="always"
               dpr={[1, 1.25]}
               gl={{ alpha: true, stencil: true }}
               onPointerMissed={editor.onPointerMissed}

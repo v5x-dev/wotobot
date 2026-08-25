@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useRef } from 'react'
 import { BufferGeometry, DoubleSide, Group, Plane, Quaternion, Vector3, type Object3D } from 'three'
 import { snapVec3 } from '@/model/grid'
 import { eulerToQuat, quatToEuler } from '@/model/math'
@@ -61,6 +61,12 @@ export function PlacementPreview({
   onRotation: (rotation: [number, number, number]) => void
 }) {
   const groupRef = useRef<Group>(null)
+  const partRef = useRef(part)
+  const partsRef = useRef(parts)
+  const flipRef = useRef(flip)
+  const rotatingRef = useRef(rotating)
+  const onPlaceRef = useRef(onPlace)
+  const onRotationRef = useRef(onRotation)
   const rotationRef = useRef<[number, number, number]>(part?.rotation ?? [0, 0, 0])
   const poseRef = useRef({
     position: [0, 0, 0] as [number, number, number],
@@ -72,18 +78,25 @@ export function PlacementPreview({
   const rayGeometryRef = useRef<BufferGeometry>(null)
   const scene = useThree((state) => state.scene)
   const raycaster = useThree((state) => state.raycaster)
+  const invalidate = useThree((state) => state.invalidate)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    partRef.current = part
+    partsRef.current = parts
+    flipRef.current = flip
+    rotatingRef.current = rotating
+    onPlaceRef.current = onPlace
+    onRotationRef.current = onRotation
     if (part) rotationRef.current = part.rotation
-  }, [part])
+  }, [flip, onPlace, onRotation, part, parts, rotating])
 
   useFrame(({ camera: frameCamera, pointer }) => {
-    const current = part
+    const current = partRef.current
     const group = groupRef.current
     if (!current || !group) return
     raycaster.setFromCamera(pointer, frameCamera)
 
-    if (rotating) {
+    if (rotatingRef.current) {
       if (!rotateStart.current) {
         rotateStart.current = {
           x: pointer.x,
@@ -106,7 +119,7 @@ export function PlacementPreview({
       const euler = quatToEuler(next)
       group.quaternion.copy(next)
       poseRef.current.rotation = euler
-      onRotation(euler)
+      onRotationRef.current(euler)
       return
     }
     rotateStart.current = null
@@ -145,9 +158,9 @@ export function PlacementPreview({
             worldForward,
           },
           hitNormal,
-          flip,
+          flipRef.current,
         )
-        hoverPart = parts.find((placed) => placed.instanceId === hole.partId) ?? null
+        hoverPart = partsRef.current.find((placed) => placed.instanceId === hole.partId) ?? null
         hoverPoint = item.point
         break
       }
@@ -172,7 +185,7 @@ export function PlacementPreview({
       hoverPoint,
       groundPoint,
       currentRotation: rotationRef.current,
-      flip,
+      flip: flipRef.current,
     })
     group.position.set(...snapped.position)
     eulerToQuat(snapped.modifyRotation ? snapped.rotation : rotationRef.current, _quat)
@@ -203,7 +216,7 @@ export function PlacementPreview({
 
     function onPointerDown(event: PointerEvent) {
       if (event.button !== 0 || !isSceneTarget(event.target)) return
-      const current = part
+      const current = partRef.current
       if (!current) return
       pointerId = event.pointerId
       startX = event.clientX
@@ -213,6 +226,7 @@ export function PlacementPreview({
     }
 
     function onPointerMove(event: PointerEvent) {
+      if (partRef.current) invalidate()
       if (pointerId !== event.pointerId) return
       const dx = event.clientX - startX
       const dy = event.clientY - startY
@@ -224,8 +238,8 @@ export function PlacementPreview({
       pointerId = null
       const toPlace = pending
       pending = null
-      if (event.button !== 0 || dragged || !toPlace || rotating) return
-      onPlace(poseRef.current.position, poseRef.current.rotation, toPlace)
+      if (event.button !== 0 || dragged || !toPlace || rotatingRef.current) return
+      onPlaceRef.current(poseRef.current.position, poseRef.current.rotation, toPlace)
     }
 
     window.addEventListener('pointerdown', onPointerDown)
@@ -236,7 +250,7 @@ export function PlacementPreview({
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [onPlace, part, rotating])
+  }, [invalidate])
 
   if (!part) return null
 

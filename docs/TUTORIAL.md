@@ -108,6 +108,7 @@ Toggle `H` to see every hole marker on every part.
 - `Shift+click` adds to `selectedIds` (`src/editor/useRobotEditor.ts:selectPart`).
 - **Box select:** hold `B` (`src/hotkeys.ts:41`) and left-drag across the canvas. `src/components/scene/BoxSelect.tsx:35` projects each part's bounds to screen space and calls `boxSelect()` at `src/App.tsx:228`.
 - `Ctrl+A` selects all (`src/editor/useRobotEditor.ts:selectAll`).
+- **Select matching parts:** select a part, then choose **Edit → Select Same Part Type**. This selects every placed part from the same catalog entry, regardless of its size or length options.
 
 **Transform tool (`1`)** — `src/App.tsx:513` enables gizmos:
 
