@@ -4,7 +4,6 @@ import {
   Copy,
   Group,
   Link2,
-  Move3d,
   MousePointer2,
   Palette,
   Scan,
@@ -21,7 +20,6 @@ import { formatHotkey, type Hotkeys } from '@/hotkeys'
 
 const TOOLS: { id: EditorTool; label: string; action: keyof Hotkeys; icon: typeof MousePointer2 }[] = [
   { id: 'transform', label: 'Transform', action: 'transformTool', icon: MousePointer2 },
-  { id: 'move', label: 'Move', action: 'moveTool', icon: Move3d },
   { id: 'color', label: 'Color', action: 'colorTool', icon: Palette },
 ]
 

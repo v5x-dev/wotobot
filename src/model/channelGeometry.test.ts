@@ -3,6 +3,7 @@ import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three'
 import {
   assembleLinearSplitGeometry,
   assembleChannelGeometry,
+  getAssembledChannelGeometry,
   pieceForLinearHole,
   pieceForHole,
   withoutChannelSeamFaces,
@@ -100,6 +101,14 @@ describe('assembled channel geometry', () => {
     const geometry = assembleChannelGeometry(pieces, 7)
 
     expect(geometry.getAttribute('position').count).toBe(source.getAttribute('position').count * 7)
+  })
+
+  it('reuses assembled geometry for matching pieces and hole counts', () => {
+    const source = geometryWithEndFaces()
+    const pieces = { single: source, endcap: source, mid: source, mid5: source } satisfies ChannelPieces[2]
+
+    expect(getAssembledChannelGeometry(pieces, 7)).toBe(getAssembledChannelGeometry(pieces, 7))
+    expect(getAssembledChannelGeometry(pieces, 8)).not.toBe(getAssembledChannelGeometry(pieces, 7))
   })
 
   it('uses the paired Mid5 pieces for other split model families', () => {

@@ -409,6 +409,7 @@ type Props = {
   outline?: OutlineKind
   showGizmo?: boolean
   interactive?: boolean
+  partKind?: string
   position: [number, number, number]
   rotation: [number, number, number]
   onSelect: (additive: boolean) => void
@@ -433,6 +434,7 @@ export function SelectablePart({
   outline = null,
   showGizmo = false,
   interactive = true,
+  partKind,
   position,
   rotation,
   onSelect,
@@ -585,6 +587,7 @@ export function SelectablePart({
     <>
       <group
         ref={groupRef}
+        userData={{ partKind }}
         onPointerDown={(event) => {
           if (!interactive || event.button !== 0) return
           event.stopPropagation()

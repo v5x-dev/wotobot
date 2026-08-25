@@ -25,7 +25,8 @@ export type LinearSplitPieces = {
   mid5End: BufferGeometry
 }
 
-const catalogCache = new Map<string, BufferGeometry>()
+const channelPiecesCache = new WeakMap<Object3D, ChannelPieces>()
+const assembledChannelCache = new WeakMap<ChannelPieces[ChannelProfile], Map<number, BufferGeometry>>()
 
 export function isChannelProfile(value: number): value is ChannelProfile {
   return value === 2 || value === 3 || value === 5
@@ -96,6 +97,24 @@ export function assembleChannelGeometry(
   return merged
 }
 
+export function getAssembledChannelGeometry(
+  pieces: ChannelPieces[ChannelProfile],
+  holeCount: number,
+) {
+  let geometries = assembledChannelCache.get(pieces)
+  if (!geometries) {
+    geometries = new Map()
+    assembledChannelCache.set(pieces, geometries)
+  }
+
+  const cached = geometries.get(holeCount)
+  if (cached) return cached
+
+  const geometry = assembleChannelGeometry(pieces, holeCount)
+  geometries.set(holeCount, geometry)
+  return geometry
+}
+
 export function pieceForLinearHole(
   pieces: LinearSplitPieces,
   hole: number,
@@ -121,27 +140,6 @@ export function assembleLinearSplitGeometry(
   transformed.forEach((geometry) => geometry.dispose())
   if (!merged) throw new Error('Could not assemble split geometry')
   return merged
-}
-
-export function catalogMeshName(profile: ChannelProfile, holes: number) {
-  return `CCHL_1x${profile}x${holes}`
-}
-
-export function getCatalogGeometry(
-  catalog: Map<string, BufferGeometry>,
-  profile: ChannelProfile,
-  holes: number,
-) {
-  const key = `${profile}x${holes}`
-  const cached = catalogCache.get(key)
-  if (cached) return cached
-
-  const source = catalog.get(catalogMeshName(profile, holes))
-  if (!source) return null
-
-  const geometry = source.clone()
-  catalogCache.set(key, geometry)
-  return geometry
 }
 
 export function indexCatalogMeshes(root: Object3D) {
@@ -188,6 +186,9 @@ function positiveEndPiece(source: BufferGeometry) {
 }
 
 export function collectChannelPieces(root: Object3D): ChannelPieces {
+  const cached = channelPiecesCache.get(root)
+  if (cached) return cached
+
   const meshes = new Map<string, BufferGeometry>()
   root.traverse((obj) => {
     const mesh = obj as Mesh
@@ -202,7 +203,7 @@ export function collectChannelPieces(root: Object3D): ChannelPieces {
     return geometry
   }
 
-  return {
+  const pieces: ChannelPieces = {
     2: {
       single: pick('CCHL_1x2-Endcap'),
       endcap: withoutChannelSeamFaces(pick('CCHL_1x2-Endcap'), true),
@@ -222,4 +223,6 @@ export function collectChannelPieces(root: Object3D): ChannelPieces {
       mid5: withoutChannelSeamFaces(pick('CCHL_1x5-Mid5')),
     },
   }
+  channelPiecesCache.set(root, pieces)
+  return pieces
 }

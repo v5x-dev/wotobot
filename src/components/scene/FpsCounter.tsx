@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
 import type { WebGLRenderer } from 'three'
+import { collectPartTriangles, formatPartTriangleOverlay } from './partTriangles'
 
 function setAutoReset(renderer: WebGLRenderer, value: boolean) {
   renderer.info.autoReset = value
@@ -10,10 +11,12 @@ export function FpsCounter({
   onFpsChange,
   onTriangleChange,
   onDrawCallChange,
+  onPartTrianglesChange,
 }: {
   onFpsChange: (label: string) => void
   onTriangleChange: (label: string) => void
   onDrawCallChange: (label: string) => void
+  onPartTrianglesChange: (label: string) => void
 }) {
   const frames = useRef(0)
   const last = useRef<number | null>(null)
@@ -34,7 +37,7 @@ export function FpsCounter({
     gl.info.reset()
   }, -100)
 
-  useFrame(({ gl }) => {
+  useFrame(({ gl, scene }) => {
     frames.current += 1
     const now = performance.now()
     if (previousFrame.current != null && now - previousFrame.current > 100) {
@@ -58,7 +61,7 @@ export function FpsCounter({
     )
     const calls = gl.info.render.calls
     onDrawCallChange(`${calls.toLocaleString()} ${calls === 1 ? 'draw call' : 'draw calls'}`)
-
+    onPartTrianglesChange(formatPartTriangleOverlay(collectPartTriangles(scene)))
   }, 2)
 
   return null

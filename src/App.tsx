@@ -190,6 +190,7 @@ function App() {
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
   const drawCallLabel = useRef<HTMLDivElement>(null)
+  const partTrianglesLabel = useRef<HTMLDivElement>(null)
   const importAbort = useRef<AbortController | null>(null)
 
   const setFpsLabel = useCallback((label: string) => {
@@ -200,6 +201,9 @@ function App() {
   }, [])
   const setDrawCallLabel = useCallback((label: string) => {
     if (drawCallLabel.current) drawCallLabel.current.textContent = label
+  }, [])
+  const setPartTrianglesLabel = useCallback((label: string) => {
+    if (partTrianglesLabel.current) partTrianglesLabel.current.textContent = label
   }, [])
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -536,6 +540,7 @@ function App() {
                 </div>
                 <div ref={triangleLabel}>0 triangles</div>
                 <div ref={drawCallLabel}>0 draw calls</div>
+                <div ref={partTrianglesLabel} className="mt-2 whitespace-pre text-right" />
               </div>
             </div>
             <Canvas
@@ -627,6 +632,7 @@ function App() {
                 onFpsChange={setFpsLabel}
                 onTriangleChange={setTriangleLabel}
                 onDrawCallChange={setDrawCallLabel}
+                onPartTrianglesChange={setPartTrianglesLabel}
               />
             </Canvas>
           </SidebarInset>

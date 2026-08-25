@@ -33,7 +33,6 @@ import {
   type FileSystemFileHandle,
 } from '@/persistence/fileIO'
 import { eulerToQuat, quatToEuler } from '@/model/math'
-import { cameraForImportedParts } from '@/model/importCamera'
 import type { Hotkeys } from '@/hotkeys'
 import { useEditorHotkeys, type EditorCommands } from './useEditorHotkeys'
 import {
@@ -795,8 +794,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
 
   const importParts = useCallback((nextParts: PlacedPart[], name: string) => {
     if (!confirmDiscard()) return false
-    const importCamera = cameraForImportedParts(nextParts, camera)
-    loadParts(nextParts, [], `${stemName(name)}.wbb`, null, importCamera)
+    loadParts(nextParts, [], `${stemName(name)}.wbb`, null, camera)
     setSavedJson(serializeDocument([], DEFAULT_CAMERA, []))
     return true
   }, [camera, confirmDiscard, loadParts])

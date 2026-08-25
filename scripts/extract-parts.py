@@ -26,7 +26,7 @@ FOLDER_GROUP = {
 }
 UNITY_GROUP = {0: "Structure", 1: "Motion", 2: "Electronics", 3: "None"}
 ALUMINUM_FBX = {
-    "CCHL": {"catalog": "Structure/C-Channels.fbx", "split": "Structure/C-Channels (split).fbx", "meshPrefix": "CCHL"},
+    "CCHL": {"catalog": None, "split": "Structure/C-Channels (split).fbx", "meshPrefix": "CCHL"},
     "ANGL": {"catalog": "Structure/Angles.fbx", "split": "Structure/Angles (split).fbx", "meshPrefix": "ANGL"},
     "UCHL": {"catalog": None, "split": "Structure/U-Channels (split).fbx", "meshPrefix": "UCHL"},
     "RAILS": {"catalog": "Extra Structure/Rails.fbx", "split": None, "meshPrefix": "RAIL"},

@@ -108,7 +108,7 @@ export const PARTS: PartDefinition[] = [
     "variants": [],
     "mesh": {
       "meshName": "CCHL",
-      "fbx": "Structure/C-Channels.fbx",
+      "fbx": "Structure/C-Channels (split).fbx",
       "splitFbx": "Structure/C-Channels (split).fbx"
     }
   },

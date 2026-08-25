@@ -137,7 +137,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     description:
       'File → Import from Onshape… opens a STEP picker (openStepFile at fileIO.ts:86). A worker (stepImport.worker.ts) converts the file via convertStepToMetadata → stepMetadataToParts (onshapeParts.ts), mapping assembly components to catalog names.',
     detail:
-      'If nothing maps, you’ll see “No supported Protobot catalog parts were found.” (src/App.tsx:253). Success reframes an orthographic camera on the imported bounds without changing its viewing direction, then renames the document to the STEP filename. Protobot Rebuilt has no STEP import.',
+      'If nothing maps, you’ll see “No supported Protobot catalog parts were found.” (src/App.tsx:253). Success loads the parts without changing the camera, then renames the document to the STEP filename. Protobot Rebuilt has no STEP import.',
     hint: 'Export a STEP from Onshape and try importing it here.',
   },
   {

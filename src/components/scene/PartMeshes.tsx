@@ -18,10 +18,9 @@ import { SelectablePart } from './SelectablePart'
 import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
   assembleLinearSplitGeometry,
-  assembleChannelGeometry,
   collectChannelPieces,
   collectLinearSplitPieces,
-  getCatalogGeometry,
+  getAssembledChannelGeometry,
   indexCatalogMeshes,
 } from '@/model/channelGeometry'
 import { chainGeometry, resampleClosedPath, type SprocketChain } from '@/model/chains'
@@ -39,7 +38,6 @@ import {
   type PlacedPart,
 } from '@/model/parts'
 
-const CATALOG_FBX = modelUrl('Structure/C-Channels.fbx')
 const SPLIT_FBX = modelUrl('Structure/C-Channels (split).fbx')
 const ANGLE_CATALOG_FBX = modelUrl('Structure/Angles.fbx')
 const ANGLE_SPLIT_FBX = modelUrl('Structure/Angles (split).fbx')
@@ -155,6 +153,7 @@ function prepareFbxClone(
   finish: MeshFinish,
   rotation?: [number, number, number],
   color?: [number, number, number] | null,
+  metalness?: number,
 ) {
   const clone = source.clone(true)
   clone.position.set(0, 0, 0)
@@ -174,7 +173,9 @@ function prepareFbxClone(
     if (finish.endsWith('-preview')) mesh.raycast = noopRaycast
     const partColor = color ?? DEFAULT_PART_COLOR
     const apply = (material: Material) => {
-      if (material instanceof MeshStandardMaterial) material.color.setRGB(...partColor)
+      if (!(material instanceof MeshStandardMaterial)) return
+      material.color.setRGB(...partColor)
+      if (metalness != null) material.metalness = metalness
     }
     if (Array.isArray(mesh.material)) mesh.material.forEach(apply)
     else apply(mesh.material)
@@ -195,7 +196,7 @@ function AssembledChannel({
 }) {
   const profilePieces = pieces[profile]
   const geometry = useMemo(
-    () => assembleChannelGeometry(profilePieces, holes),
+    () => getAssembledChannelGeometry(profilePieces, holes),
     [holes, profilePieces],
   )
 
@@ -217,22 +218,9 @@ function ChannelPart({
   holes: number
   material: MeshStandardMaterial
 }) {
-  const catalogFbx = useFBX(CATALOG_FBX)
   const splitFbx = useFBX(SPLIT_FBX)
-  const catalog = useMemo(() => indexCatalogMeshes(catalogFbx), [catalogFbx])
   const pieces = useMemo(() => collectChannelPieces(splitFbx), [splitFbx])
   const profile = channelProfileFromSize(size)
-  const geometry = getCatalogGeometry(catalog, profile, holes)
-
-  if (geometry) {
-    return (
-      <mesh
-        geometry={geometry}
-        material={material}
-        {...(material === preview ? { raycast: noopRaycast } : {})}
-      />
-    )
-  }
 
   return (
     <AssembledChannel
@@ -298,6 +286,7 @@ function FbxMeshPart({
   rotation,
   finish = 'model',
   color = null,
+  metalness,
 }: {
   url: string
   meshName: string
@@ -305,12 +294,13 @@ function FbxMeshPart({
   rotation?: [number, number, number]
   finish?: MeshFinish
   color?: [number, number, number] | null
+  metalness?: number
 }) {
   const fbx = useFBX(url)
   const object = useMemo(() => {
     const source = findNamedObject(fbx, meshName) ?? firstMesh(fbx) ?? fbx
-    return prepareFbxClone(source, finish, rotation, color)
-  }, [fbx, meshName, finish, rotation, color])
+    return prepareFbxClone(source, finish, rotation, color, metalness)
+  }, [fbx, meshName, finish, rotation, color, metalness])
 
   return <primitive object={object} scale={scale ?? [1, 1, 1]} />
 }
@@ -387,7 +377,7 @@ function SprocketPart({
 }) {
   const definition = findPart(part.key)
   const variant = definition && variantFor(definition, part.param1, part.param2)
-  const url = variant?.fbx ? modelUrl(variant.fbx) : CATALOG_FBX
+  const url = variant?.fbx ? modelUrl(variant.fbx) : SPLIT_FBX
   const fbx = useFBX(url)
   const object = useMemo(() => {
     if (!variant) return null
@@ -657,6 +647,7 @@ export function PlacedPartMesh({
         rotation={fbx === 'pnmatics/NewRes.fbx' ? [Math.PI, 0, 0] : MODEL_ROTATION}
         finish={isPreview ? 'model-preview' : 'model'}
         color={part.color}
+        metalness={definition.id === 'TANK' ? aluminum.metalness : undefined}
       />
       {holes}
     </>
@@ -768,6 +759,7 @@ export function SceneParts({
         return (
           <SelectablePart
             key={part.instanceId}
+            partKind={findPart(part.key)?.name ?? part.key}
             outline={outline}
             showGizmo={showGizmos && part.instanceId === primaryId}
             interactive={interactive}
