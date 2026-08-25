@@ -1,4 +1,4 @@
-import { useFBX } from '@react-three/drei'
+import { Edges, useFBX } from '@react-three/drei'
 import { Suspense, useMemo } from 'react'
 import {
   DoubleSide,
@@ -31,6 +31,7 @@ import {
 } from '@/model/chains'
 import { eulerToQuat } from '@/model/math'
 import { modelScaleFor } from '@/model/modelScale'
+import { loadingBoxForPart } from '@/model/loadingBounds'
 import { DEFAULT_COLOR } from '@/model/colors'
 import {
   channelProfileFromSize,
@@ -368,11 +369,13 @@ function MissingPart() {
   )
 }
 
-export function ModelLoadingPlaceholder() {
+export function ModelLoadingPlaceholder({ part }: { part?: PlacedPart }) {
+  const box = loadingBoxForPart(part)
   return (
-    <mesh raycast={noopRaycast}>
-      <boxGeometry args={[0.75, 0.75, 0.75]} />
-      <meshBasicMaterial color="#3EA6FF" transparent opacity={0.75} wireframe />
+    <mesh raycast={noopRaycast} position={box.position}>
+      <boxGeometry args={box.size} />
+      <meshBasicMaterial color="#3EA6FF" transparent opacity={0.08} depthWrite={false} />
+      <Edges color="#3EA6FF" lineWidth={1.5} />
     </mesh>
   )
 }
@@ -780,7 +783,7 @@ export function SceneParts({
             onMoveStart={onMoveStart}
             onMoveEnd={onMoveEnd}
           >
-            <Suspense fallback={<ModelLoadingPlaceholder />}>
+            <Suspense fallback={<ModelLoadingPlaceholder part={part} />}>
               <PlacedPartMesh
                 part={part}
                 showHoles={showHoles}

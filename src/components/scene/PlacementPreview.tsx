@@ -243,7 +243,7 @@ export function PlacementPreview({
   return (
     <>
       <group ref={groupRef} userData={{ preview: true }}>
-        <Suspense fallback={<ModelLoadingPlaceholder />}>
+        <Suspense fallback={<ModelLoadingPlaceholder part={part} />}>
           <PlacedPartMesh part={part} preview />
         </Suspense>
       </group>
