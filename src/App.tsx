@@ -672,7 +672,7 @@ function App() {
               data-slot="scene"
               className={`h-full w-full bg-background${editor.placingPart ? ' cursor-crosshair' : ''}`}
               camera={{ position: CAMERA_POSITION, fov: 70, near: 0.1, far: 2000 }}
-              frameloop="demand"
+              frameloop={showDebug ? 'always' : 'demand'}
               gl={{ alpha: true, stencil: true }}
               onPointerMissed={editor.onPointerMissed}
               onContextMenu={(event) => event.preventDefault()}
