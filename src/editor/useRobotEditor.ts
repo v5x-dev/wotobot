@@ -761,6 +761,15 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       : part))
   }, [pushHistory])
 
+  const updatePartVariant = useCallback((id: number, param1: string, param2: string) => {
+    const current = partsRef.current.find((part) => part.instanceId === id)
+    if (!current || (current.param1 === param1 && current.param2 === param2)) return
+    pushHistory()
+    setParts((parts) => parts.map((part) => part.instanceId === id
+      ? { ...part, param1, param2 }
+      : part))
+  }, [pushHistory])
+
   const undo = useCallback(() => {
     const prev = undoStack.at(-1)
     if (!prev) return
@@ -974,6 +983,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     transformPart,
     previewPartTransform,
     selectChain,
+    updatePartVariant,
     updatePartShape,
     selectedChainAction,
     toggleSelectedChain,

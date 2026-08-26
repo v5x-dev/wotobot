@@ -632,6 +632,10 @@ function App() {
                   if (editor.primaryId == null) return
                   editor.transformPart(editor.primaryId, position, rotation)
                 }}
+                onVariantChange={(param1, param2) => {
+                  if (editor.primaryId == null) return
+                  editor.updatePartVariant(editor.primaryId, param1, param2)
+                }}
                 onShapeChange={(shape, width, height) => {
                   if (editor.primaryId == null) return
                   editor.updatePartShape(editor.primaryId, shape, width, height)

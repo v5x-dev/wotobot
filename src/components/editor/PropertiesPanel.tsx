@@ -1,4 +1,5 @@
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { findPart, type PlacedPart, type PolycarbonateShape, polygonSize, rectanglePolygon } from '@/model/parts'
 import {
   DEFAULT_THICKNESS,
@@ -41,12 +42,14 @@ export function PropertiesPanel({
   part,
   parts,
   onChange,
+  onVariantChange,
   onShapeChange,
   triangleCount,
 }: {
   part: PlacedPart | null
   parts: PlacedPart[]
   onChange: (position: [number, number, number], rotation: [number, number, number]) => void
+  onVariantChange: (param1: string, param2: string) => void
   onShapeChange: (shape: PolycarbonateShape, width: string, height: string) => void
   triangleCount: number | null
 }) {
@@ -56,7 +59,9 @@ export function PropertiesPanel({
   const [rx, ry, rz] = part.rotation
   const toRad = (degrees: number) => (degrees * Math.PI) / 180
   const toDeg = (radians: number) => (radians * 180) / Math.PI
-  const isPolycarbonate = findPart(part.key)?.generator === 'polycarbonate'
+  const definition = findPart(part.key)
+  const isPolycarbonate = definition?.generator === 'polycarbonate'
+  const isCylinder = definition?.id === 'PNMT'
   const polyStatus = isPolycarbonate ? evaluatePolycarbonate(parts) : null
   const robotReasons = polyStatus?.over ? polycarbonateBudgetReasons(polyStatus) : []
   const name = part.onshapeName ?? findPart(part.key)?.name ?? part.key
@@ -97,6 +102,29 @@ export function PropertiesPanel({
           />
         </div>
       </div>
+      {isCylinder ? (
+        <div className="mt-3 grid gap-1.5 border-t border-sidebar-border pt-3">
+          <p className="font-medium">Cylinder position</p>
+          <div className="grid grid-cols-2 gap-1">
+            <Button
+              size="sm"
+              variant={part.param2 === 'Normal' ? 'secondary' : 'outline'}
+              aria-pressed={part.param2 === 'Normal'}
+              onClick={() => onVariantChange(part.param1, 'Normal')}
+            >
+              Retracted
+            </Button>
+            <Button
+              size="sm"
+              variant={part.param2 === 'Extended' ? 'secondary' : 'outline'}
+              aria-pressed={part.param2 === 'Extended'}
+              onClick={() => onVariantChange(part.param1, 'Extended')}
+            >
+              Extended
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {isPolycarbonate ? (
         <PolycarbonateEditor
           key={`${part.instanceId}:${JSON.stringify(part.shape)}`}
