@@ -1,7 +1,7 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { hotkeyUsesKey, matchesDeleteHotkey, matchesHotkey, type Hotkeys } from '@/hotkeys'
 
-type EditorTool = 'transform' | 'move' | 'color'
+type EditorTool = 'transform' | 'color'
 
 export type EditorCommands = {
   hasSelection: boolean
@@ -79,7 +79,6 @@ export function useEditorHotkeys(
       if (action('toggleGrid', cmd.toggleGrid)) return
       if (action('toggleProjection', cmd.toggleOrtho)) return
       if (action('transformTool', () => cmd.setTool('transform'))) return
-      if (action('moveTool', () => cmd.setTool('move'))) return
       if (action('colorTool', () => cmd.setTool('color'))) return
       if (action('moveSelection', cmd.startMoveSelection, cmd.hasSelection)) return
       if (action('newFile', cmd.newFile)) return

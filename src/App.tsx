@@ -20,6 +20,11 @@ import { OrbitControls } from '@/components/scene/OrbitControls'
 import { PlacementPreview } from '@/components/scene/PlacementPreview'
 import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
+import {
+  ViewportNavigation,
+  ViewportNavigationBridge,
+  type ViewportNavigationController,
+} from '@/components/scene/ViewportNavigation'
 import { useRobotEditor } from '@/editor/useRobotEditor'
 import { AXIS_COLORS } from '@/model/colors'
 import { PART_GROUPS, type PartGroup } from '@/model/parts'
@@ -252,6 +257,7 @@ function App() {
   const [focusToken, setFocusToken] = useState(0)
   const [showDebug, setShowDebug] = useState(false)
   const [wireframe, setWireframe] = useState(false)
+  const [viewportNavigation, setViewportNavigation] = useState<ViewportNavigationController | null>(null)
   const [selectedPartTriangles, setSelectedPartTriangles] = useState<number | null>(null)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
@@ -600,14 +606,6 @@ function App() {
                 onDuplicate={editor.duplicate}
                 onDelete={editor.deleteSelected}
                 onFocus={() => setFocusToken((value) => value + 1)}
-                showHoles={editor.showHoles}
-                onToggleHoles={editor.toggleHoles}
-                ortho={editor.ortho}
-                onToggleProjection={() => editor.setOrtho(!editor.ortho)}
-                showDebug={showDebug}
-                onToggleDebug={toggleDebug}
-                wireframe={wireframe}
-                onToggleWireframe={() => setWireframe((enabled) => !enabled)}
                 canGroup={editor.canGroup}
                 onGroup={editor.groupSelected}
                 canUngroup={editor.canUngroup}
@@ -639,6 +637,18 @@ function App() {
                   editor.updatePartShape(editor.primaryId, shape, width, height)
                 }}
               />
+              <ViewportNavigation
+                controller={viewportNavigation}
+                ortho={editor.ortho}
+                onToggleProjection={() => editor.setOrtho(!editor.ortho)}
+                showHoles={editor.showHoles}
+                onToggleHoles={editor.toggleHoles}
+                showDebug={showDebug}
+                onToggleDebug={toggleDebug}
+                wireframe={wireframe}
+                onToggleWireframe={() => setWireframe((enabled) => !enabled)}
+                holesHotkey={formatHotkey(hotkeys.toggleHoles)}
+              />
               <div data-tutorial="weight-badge" className="pointer-events-none absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
                 <WeightBadge parts={editor.parts} />
                 <PolycarbonateBadge parts={editor.parts} />
@@ -646,7 +656,7 @@ function App() {
                   <ChainBadge linkCount={editor.selectedChainLinkCount} />
                 ) : null}
               </div>
-              {showDebug ? <div className="pointer-events-none absolute top-36 right-3 z-20 flex select-none flex-col items-end rounded bg-black/45 px-2 py-1.5 font-mono text-xs leading-4 tabular-nums text-white/75 backdrop-blur-sm">
+              {showDebug ? <div className="pointer-events-none absolute top-32 right-14 z-20 flex select-none flex-col items-end rounded bg-black/45 px-2 py-1.5 font-mono text-xs leading-4 tabular-nums text-white/75 backdrop-blur-sm">
                 <div ref={fpsLabel}>0 FPS</div>
                 <div>
                   {editor.parts.length} {editor.parts.length === 1 ? 'model' : 'models'}
@@ -686,7 +696,7 @@ function App() {
                 selectedIds={editor.selectedIds}
                 primaryId={editor.primaryId}
                 connectedIds={editor.connectedIds}
-                interactive={!editor.placingPart && editor.tool !== 'move'}
+                interactive={!editor.placingPart}
                 showHoles={editor.showHoles}
                 detectHoles={editor.placingPart != null}
                 wireframe={wireframe}
@@ -738,6 +748,7 @@ function App() {
                   axisHeadScale={0.9}
                 />
               </GizmoHelper>
+              <ViewportNavigationBridge onReady={setViewportNavigation} />
               <FocusCamera point={editor.primary?.position ?? null} token={focusToken} />
               <BoxSelect
                 enabled={!editor.placingPart}

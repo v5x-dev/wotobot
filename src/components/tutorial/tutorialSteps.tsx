@@ -68,14 +68,14 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'transform',
-    title: '5 — Transform & move',
+    title: '5 — Transform & move selection',
     target: '[data-tutorial="tools-sidebar"]',
     description:
-      'Tool 1 (Transform) shows drei TransformControls gizmos — drag axes to move/rotate. Tool 2 (Move) picks up the selection and re-enters placement so you can re-snap it to a different hole (Shift+D also triggers this).',
+      'Tool 1 (Transform) shows drei TransformControls gizmos — drag axes to move/rotate. Shift+D picks up the selection and re-enters placement so you can re-snap it to a different hole.',
     detail:
-      'Protobot Rebuilt has dedicated PositionAxis / PositionPlane / RotateRing gizmos; wotobot unifies them into the three tools on the left rail (src/components/editor/ToolsSidebar.tsx:88). The Properties panel (bottom-left) mirrors X/Y/Z and RX/RY/RZ numerically — edits commit on blur/Enter.',
-    hint: 'Try: select a part → press 1 and drag the gizmo → press 2 or Shift+D to re-snap it.',
-    validate: (editor) => editor.tool === 'transform' || editor.tool === 'move',
+      'Protobot Rebuilt has dedicated PositionAxis / PositionPlane / RotateRing gizmos. The Properties panel (bottom-left) mirrors X/Y/Z and RX/RY/RZ numerically — edits commit on blur/Enter.',
+    hint: 'Try: select a part → press 1 and drag the gizmo → press Shift+D to re-snap it.',
+    validate: (editor) => editor.tool === 'transform',
     validateLabel: 'Tried a tool',
   },
   {
@@ -83,10 +83,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: '6 — Color & holes',
     target: '[data-tutorial="tools-sidebar"]',
     description:
-      'Tool 3 (Color) paints the selection. A swatch palette appears from src/model/colors.ts — Default resets to the original material. H toggles cyan hole markers on every part.',
+      'Tool 2 (Color) paints the selection. A swatch palette appears from src/model/colors.ts — Default resets to the original material. H toggles cyan hole markers on every part.',
     detail:
       'Both apps have a custom color picker. In wotobot the palette callback at src/App.tsx:452 calls setColor (for next placements) and paintSelected (for current selection) immediately.',
-    hint: 'Select a part, press 3, pick a preset or Custom. Press H to see holes.',
+    hint: 'Select a part, press 2, pick a preset or Custom. Press H to see holes.',
   },
   {
     id: 'chains',
@@ -147,7 +147,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     description:
       'Help → Keyboard shortcuts opens HotkeyDialog (src/hotkeys.ts:20). Click a binding, press the new chord (hotkeyFromEvent at hotkeys.ts:67), Backspace to clear, Reset to restore defaults. Bindings persist as protobot.hotkeys.v1 in localStorage.',
     detail:
-      'Defaults: File Mod+N/O/S/Shift+S, Edit Mod+Z/Shift+Z/X/C/V/D/A/G/Shift+G/Del/Shift+D, Tools 1/2/3/R/Space/B, View F/H/G/O. macOS shows ⌘/⇧/⌥ via formatHotkey().',
+      'Defaults: File Mod+N/O/S/Shift+S, Edit Mod+Z/Shift+Z/X/C/V/D/A/G/Shift+G/Del/Shift+D, Tools 1/2/R/Space/B, View F/H/G/O. macOS shows ⌘/⇧/⌥ via formatHotkey().',
     hint: 'Open Help → Keyboard shortcuts and try rebinding any action.',
   },
   {

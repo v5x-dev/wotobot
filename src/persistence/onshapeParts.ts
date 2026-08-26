@@ -43,6 +43,7 @@ const CATALOG_SHAFT_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
     0, 0, 0, 1,
   ),
 )
+const ON_SHAPE_SHAFT_COLLAR_CENTER = new Vector3(4.2806, 5.6968, 7.9749).multiplyScalar(MILLIMETERS_TO_INCHES)
 
 export type StepPartImport = {
   parts: PlacedPart[]
@@ -228,6 +229,16 @@ function alignCatalogPart(
     return {
       position,
       rotation: editorRotation(sourceRotation.clone().multiply(CATALOG_RESERVOIR_TO_ONSHAPE)),
+    }
+  }
+
+  if (definition.id === 'CLMP') {
+    return {
+      position: ON_SHAPE_SHAFT_COLLAR_CENTER.clone()
+        .applyQuaternion(sourceRotation)
+        .add(new Vector3(...position))
+        .toArray() as [number, number, number],
+      rotation: editorRotation(sourceRotation.clone().multiply(CATALOG_SHAFT_TO_ONSHAPE)),
     }
   }
 

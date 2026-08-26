@@ -1,6 +1,6 @@
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
-import { Color, DoubleSide, Vector3, type ShaderMaterial } from 'three'
+import { Color, DoubleSide, OrthographicCamera, Vector3, type ShaderMaterial } from 'three'
 
 /** World unit is 1 inch. */
 const INCH = 1
@@ -8,10 +8,11 @@ const INCH = 1
 const vertexShader = /* glsl */ `
   uniform vec3 uCameraPosition;
   uniform float uFadeDistance;
+  uniform float uGridExtent;
   varying vec3 vWorldPosition;
 
   void main() {
-    vec3 pos = position * (uFadeDistance * 2.0);
+    vec3 pos = position * (uGridExtent * 2.0);
     vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
     worldPosition.xz += uCameraPosition.xz;
     vWorldPosition = worldPosition.xyz;
@@ -84,6 +85,7 @@ export function InfiniteGrid() {
       uCellSize: { value: INCH },
       uSectionSize: { value: INCH * 12 },
       uFadeDistance: { value: 40 },
+      uGridExtent: { value: 80 },
       uCameraPosition: { value: new Vector3() },
     }),
     [],
@@ -94,7 +96,18 @@ export function InfiniteGrid() {
     if (!material) return
 
     material.uniforms.uCameraPosition.value.copy(camera.position)
-    material.uniforms.uFadeDistance.value = Math.max(camera.position.length() * 2.5, 8)
+
+    let fadeDistance = Math.max(camera.position.length() * 2.5, 8)
+    if (camera instanceof OrthographicCamera) {
+      const halfWidth = (camera.right - camera.left) / (2 * camera.zoom)
+      const halfHeight = (camera.top - camera.bottom) / (2 * camera.zoom)
+      const visibleRadius = Math.hypot(halfWidth, halfHeight)
+      fadeDistance = Math.max(fadeDistance, visibleRadius * 2)
+    }
+
+    material.uniforms.uFadeDistance.value = fadeDistance
+    // Keep the plane edge beyond the circular fade so it can never become visible.
+    material.uniforms.uGridExtent.value = fadeDistance * 2
   })
 
   return (

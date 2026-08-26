@@ -5,7 +5,7 @@ export type HotkeyAction =
   | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'duplicate' | 'selectAll'
   | 'group' | 'ungroup' | 'delete' | 'moveSelection'
   | 'focus' | 'toggleHoles' | 'toggleGrid' | 'toggleProjection'
-  | 'transformTool' | 'moveTool' | 'colorTool' | 'rotatePlacement'
+  | 'transformTool' | 'colorTool' | 'rotatePlacement'
   | 'flipPlacement' | 'boxSelect'
 
 export type Hotkeys = Record<HotkeyAction, string>
@@ -34,8 +34,7 @@ export const HOTKEY_DEFINITIONS: HotkeyDefinition[] = [
   { action: 'delete', label: 'Delete selection', group: 'Edit', defaultBinding: 'Delete' },
   { action: 'moveSelection', label: 'Move selection', group: 'Edit', defaultBinding: 'Shift+D' },
   { action: 'transformTool', label: 'Transform tool', group: 'Tools', defaultBinding: '1' },
-  { action: 'moveTool', label: 'Move tool', group: 'Tools', defaultBinding: '2' },
-  { action: 'colorTool', label: 'Color tool', group: 'Tools', defaultBinding: '3' },
+  { action: 'colorTool', label: 'Color tool', group: 'Tools', defaultBinding: '2' },
   { action: 'rotatePlacement', label: 'Rotate placement', group: 'Tools', defaultBinding: 'R' },
   { action: 'flipPlacement', label: 'Flip placement', group: 'Tools', defaultBinding: 'Space' },
   { action: 'boxSelect', label: 'Box select', group: 'Tools', defaultBinding: 'B' },

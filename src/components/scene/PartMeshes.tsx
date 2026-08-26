@@ -21,7 +21,7 @@ import {
 import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
 import { consumeGizmoPointer } from './gizmoPointer'
-import type { PartTriangleTotals } from './partTriangles'
+import { partTriangleName, type PartTriangleTotals } from './partTriangles'
 import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
   collectChannelPieces,
@@ -898,6 +898,11 @@ function structuralGeometryKey(part: PlacedPart) {
   return `${part.key}\u0000${part.param1}\u0000${part.param2}`
 }
 
+function triangleNameForPart(part: PlacedPart) {
+  const definition = findPart(part.key)
+  return partTriangleName(definition?.id, definition?.name ?? part.key, part.param1)
+}
+
 type PendingBatchDisposal = {
   batch: BatchedMesh
   timer: ReturnType<typeof setTimeout>
@@ -985,7 +990,7 @@ function BatchedStructuralParts({
       result.userData.partIds[batchId] = instanceId
       const geometry = geometries.get(structuralGeometryKey(part))
       const triangles = Math.floor((geometry?.index?.count ?? geometry?.attributes.position.count ?? 0) / 3)
-      const name = findPart(part.key)?.name ?? part.key
+      const name = triangleNameForPart(part)
       partTriangleTotals[name] = (partTriangleTotals[name] ?? 0) + triangles
     }
     result.userData.partTriangleTotals = partTriangleTotals
@@ -1147,7 +1152,7 @@ export function SceneParts({
           <SelectablePart
             key={part.instanceId}
             partId={part.instanceId}
-            partKind={findPart(part.key)?.name ?? part.key}
+            partKind={triangleNameForPart(part)}
             outline={outline}
             showGizmo={showGizmos && part.instanceId === primaryId}
             interactive={interactive}

@@ -50,7 +50,7 @@ import {
 
 const MAX_HISTORY = 100
 
-export type EditorTool = 'transform' | 'move' | 'color'
+export type EditorTool = 'transform' | 'color'
 
 type Snapshot = {
   parts: PlacedPart[]
@@ -877,10 +877,9 @@ export function useRobotEditor(hotkeys: Hotkeys) {
   const chooseTool = useCallback(
     (next: EditorTool) => {
       setTool(next)
-      if (next === 'move') startMoveSelection()
-      if (next !== 'move' && movingSelection) stopPlacing()
+      if (movingSelection) stopPlacing()
     },
-    [movingSelection, startMoveSelection, stopPlacing],
+    [movingSelection, stopPlacing],
   )
 
   const toggleHoles = useCallback(() => {

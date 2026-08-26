@@ -112,6 +112,74 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[1].position).toEqual([0.375, 0, 0])
   })
 
+  it('aligns a shaft collar bore with the Onshape source x axis', () => {
+    const sourceRotation = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI / 3)
+    const matrix = new Matrix4().makeRotationFromQuaternion(sourceRotation)
+    const elements = matrix.elements
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        {
+          instanceId: 'collar',
+          productId: '276-2010',
+          name: 'Shaft Collar (276-2010)',
+          kind: 'part',
+          path: [],
+          position: [2, 3, 4],
+          rotation: [0, 0, 60],
+          basis: [
+            elements[0], elements[4], elements[8],
+            elements[1], elements[5], elements[9],
+            elements[2], elements[6], elements[10],
+          ],
+        },
+      ],
+    })
+
+    const collar = result.parts[0]
+    const boreAxis = new Vector3(0, 0, 1).applyEuler(new Euler(...collar.rotation))
+    const sourceXAxis = new Vector3(1, 0, 0).applyQuaternion(sourceRotation)
+    expect(boreAxis.x).toBeCloseTo(sourceXAxis.x)
+    expect(boreAxis.y).toBeCloseTo(sourceXAxis.y)
+    expect(boreAxis.z).toBeCloseTo(sourceXAxis.z)
+    expect(collar.position).toEqual([0, 0, 0])
+  })
+
+  it('moves the shaft collar from its Onshape origin to its geometry center', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'millimeter',
+      parts: [
+        {
+          instanceId: 'collar',
+          productId: '276-2010',
+          name: 'Shaft Collar (276-2010)',
+          kind: 'part',
+          path: [],
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          basis: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+        },
+        {
+          instanceId: 'motor',
+          productId: 'motor',
+          name: 'V5 Smart Motor',
+          kind: 'part',
+          path: [],
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+        },
+      ],
+    })
+
+    const collar = result.parts[0]
+    const motor = result.parts[1]
+    expect(collar.position[0] - motor.position[0]).toBeCloseTo(4.2806 / 25.4)
+    expect(collar.position[1] - motor.position[1]).toBeCloseTo(5.6968 / 25.4)
+    expect(collar.position[2] - motor.position[2]).toBeCloseTo(7.9749 / 25.4)
+  })
+
   it('imports standard shafts at their stated length along the source z axis', () => {
     const result = stepMetadataToParts({
       schema: null,

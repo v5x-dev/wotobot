@@ -6,13 +6,13 @@ A browser-based 3D CAD for prototyping VEX-style robots. Built with React, TypeS
 
 - **3D scene** — perspective/orthographic camera, orbit controls, infinite grid, fullscreen mode
 - **Parts catalog** — pick parts from the sidebar and place them with a live preview that snaps to holes on existing parts
-- **Editing tools** — transform gizmos, move tool, color painting, box select, hole visualization, part focus (`F`)
+- **Editing tools** — transform gizmos, color painting, box select, hole visualization, part focus (`F`)
 - **Sprocket chains** follow a selected pair of coplanar sprockets as they move
 - **Clipboard & history** — undo/redo, cut/copy/paste, duplicate, multi-select
 - **Documents** — designs save as `.wbb` files; export the parts list as text
 - **Build constraints** — live total weight readout and polycarbonate budget warnings
 
-> New here? Open **Help → Interactive tutorial** in the app for a guided, highlight-driven tour — or read the [written tutorial](docs/TUTORIAL.md). Both cover placing parts, transform/move/color, sprocket chains, saving, Onshape STEP import, and how this project differs from `../../contrib/Protobot-Rebuilt`.
+> New here? Open **Help → Interactive tutorial** in the app for a guided, highlight-driven tour — or read the [written tutorial](docs/TUTORIAL.md). Both cover placing parts, transforming and coloring them, sprocket chains, saving, Onshape STEP import, and how this project differs from `../../contrib/Protobot-Rebuilt`.
 
 ## Getting started
 

@@ -1,18 +1,13 @@
 import {
-  Box,
-  Bug,
-  CircleDotDashed,
   Copy,
   Group,
   Link2,
   MousePointer2,
   Palette,
   Scan,
-  Square,
   Trash2,
   Ungroup,
   Unlink2,
-  Waypoints,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -52,14 +47,6 @@ export function ToolsSidebar({
   onDuplicate,
   onDelete,
   onFocus,
-  showHoles,
-  onToggleHoles,
-  ortho,
-  onToggleProjection,
-  showDebug,
-  onToggleDebug,
-  wireframe,
-  onToggleWireframe,
   canGroup,
   onGroup,
   canUngroup,
@@ -76,14 +63,6 @@ export function ToolsSidebar({
   onDuplicate: () => void
   onDelete: () => void
   onFocus: () => void
-  showHoles: boolean
-  onToggleHoles: () => void
-  ortho: boolean
-  onToggleProjection: () => void
-  showDebug: boolean
-  onToggleDebug: () => void
-  wireframe: boolean
-  onToggleWireframe: () => void
   canGroup: boolean
   onGroup: () => void
   canUngroup: boolean
@@ -164,45 +143,6 @@ export function ToolsSidebar({
       >
         <Ungroup />
       </ToolButton>
-      <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
-      <ToolButton
-        label={`${showHoles ? 'Hide' : 'Show'} all holes (${formatHotkey(hotkeys.toggleHoles)})`}
-        variant={showHoles ? 'secondary' : 'ghost'}
-        size="icon-sm"
-        aria-pressed={showHoles}
-        onClick={onToggleHoles}
-      >
-        <CircleDotDashed />
-      </ToolButton>
-      <ToolButton
-        label={`Use ${ortho ? 'perspective' : 'orthographic'} view (${formatHotkey(hotkeys.toggleProjection)})`}
-        variant={ortho ? 'secondary' : 'ghost'}
-        size="icon-sm"
-        aria-pressed={ortho}
-        onClick={onToggleProjection}
-      >
-        {ortho ? <Square /> : <Box />}
-      </ToolButton>
-      <ToolButton
-        label={`${showDebug ? 'Hide' : 'Show'} debug overlay`}
-        variant={showDebug ? 'secondary' : 'ghost'}
-        size="icon-sm"
-        aria-pressed={showDebug}
-        onClick={onToggleDebug}
-      >
-        <Bug />
-      </ToolButton>
-      {showDebug ? (
-        <ToolButton
-          label={`${wireframe ? 'Disable' : 'Enable'} wireframe view`}
-          variant={wireframe ? 'secondary' : 'ghost'}
-          size="icon-sm"
-          aria-pressed={wireframe}
-          onClick={onToggleWireframe}
-        >
-          <Waypoints />
-        </ToolButton>
-      ) : null}
     </div>
   )
 }

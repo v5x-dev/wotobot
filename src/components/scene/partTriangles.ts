@@ -7,6 +7,13 @@ export type PartTriangleStat = {
 
 export type PartTriangleTotals = Record<string, number>
 
+export function partTriangleName(partId: string | undefined, name: string, size: string) {
+  if (partId !== 'CCHL' && partId !== 'ANGL') return name
+  const width = size.split('x').at(-1)
+  if (!width) return name
+  return `${width}-wide ${name}`
+}
+
 function isMesh(object: Object3D): object is Mesh {
   return (object as Mesh).isMesh
 }

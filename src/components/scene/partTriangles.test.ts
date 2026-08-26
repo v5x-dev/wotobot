@@ -6,6 +6,7 @@ import {
   formatPartTriangleOverlay,
   formatTris,
   meshTriangleCount,
+  partTriangleName,
   pluralizePartName,
 } from './partTriangles'
 
@@ -32,6 +33,17 @@ describe('part triangle overlay', () => {
     expect(formatTris(1500)).toBe('1.5k tris')
     expect(formatTris(1)).toBe('1 tri')
     expect(formatTris(12)).toBe('12 tris')
+  })
+
+  it('groups C-channels and angles by profile width', () => {
+    expect(partTriangleName('CCHL', 'C-Channel', '1x2')).toBe('2-wide C-Channel')
+    expect(partTriangleName('CCHL', 'C-Channel', '1x5')).toBe('5-wide C-Channel')
+    expect(partTriangleName('ANGL', 'Angle', '3x3')).toBe('3-wide Angle')
+    expect(partTriangleName('MOTR', 'Motor', '')).toBe('Motor')
+    expect(formatPartTriangleOverlay([
+      { name: '2-wide C-Channel', triangles: 1500 },
+      { name: '3-wide Angle', triangles: 900 },
+    ])).toBe('2-wide C-Channels: 1.5k tris\n3-wide Angles: 900 tris')
   })
 
   it('counts instanced meshes and skips overlays', () => {

@@ -115,9 +115,9 @@ Toggle `H` to see every hole marker on every part.
 - `TransformControls` from `@react-three/drei` appear on the primary part. Drag the axis handles. Live preview goes through `previewPartTransform`; commit goes through `transformPart` (`src/editor/useRobotEditor.ts`). Grouped parts (`groupId`) move together.
 - The **Properties panel** (`src/components/editor/PropertiesPanel.tsx:58`) mirrors the same state with numeric `X/Y/Z` and `RX/RY/RZ` fields. Edits call `transformPart` directly — useful for precise offsets.
 
-**Move tool (`2`)**:
+**Move selection (`Shift+D`)**:
 
-- Select one or more parts, press `Shift+D` (or `2` then `Shift+D`). `startMoveSelection()` at `src/editor/useRobotEditor.ts:712` creates a `PendingPart` from the primary selection and re-enters placement mode, so you can re-snap the existing part to a different hole. This is distinct from duplicating — the original part moves.
+- Select one or more parts and press `Shift+D`. `startMoveSelection()` at `src/editor/useRobotEditor.ts:712` creates a `PendingPart` from the primary selection and re-enters placement mode, so you can re-snap the existing part to a different hole. This is distinct from duplicating — the original part moves.
 
 **Other edits:**
 
@@ -223,7 +223,7 @@ Defaults live in `HOTKEY_DEFINITIONS` at `src/hotkeys.ts:20`:
 | Edit | Undo / Redo | `Mod+Z` / `Mod+Shift+Z` |
 | Edit | Cut / Copy / Paste / Duplicate / Select all | `Mod+X` / `C` / `V` / `D` / `A` |
 | Edit | Group / Ungroup / Delete / Move selection | `Mod+G` / `Mod+Shift+G` / `Del` / `Shift+D` |
-| Tools | Transform / Move / Color / Rotate placement / Flip placement / Box select | `1` / `2` / `3` / `R` / `Space` / `B` |
+| Tools | Transform / Color / Rotate placement / Flip placement / Box select | `1` / `2` / `R` / `Space` / `B` |
 | View | Focus / Show holes / Show grid / Toggle projection | `F` / `H` / `G` / `O` |
 
 `Help → Keyboard shortcuts` opens `HotkeyDialog` (`src/components/editor/HotkeyDialog.tsx`). Click a row, press the new chord — `hotkeyFromEvent()` at `src/hotkeys.ts:67` serializes `Mod`/`Shift`/`Alt`+key. Conflicts are flagged inline. Bindings persist in `localStorage` under `protobot.hotkeys.v1` (`src/hotkeys.ts:52`) and survive reloads; **Reset** restores `DEFAULT_HOTKEYS`. macOS shows `⌘`/`⇧`/`⌥` via `formatHotkey()` at `src/hotkeys.ts:85`.
