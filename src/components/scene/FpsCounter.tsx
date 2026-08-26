@@ -100,21 +100,10 @@ export function FpsCounter({
     const missed = samples.filter((value) => value > 1000 / 60).length
     const missedPercent = Math.round((missed / Math.max(samples.length, 1)) * 100)
     const bufferSize = gl.getDrawingBufferSize(new Vector2())
-    const memory = gl.info.memory
-    const nav = navigator as Navigator & { deviceMemory?: number }
-    const heap = performance as Performance & {
-      memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number }
-    }
-    const heapLabel = heap.memory
-      ? `JS heap ${Math.round(heap.memory.usedJSHeapSize / 1048576)}/${Math.round(heap.memory.jsHeapSizeLimit / 1048576)} MB\n`
-      : ''
     onPerformanceChange(
       `frame ${average.toFixed(1)} ms · p95 ${p95.toFixed(1)} · worst ${worst.toFixed(1)}\n` +
       `over budget ${missedPercent}% · long tasks/sample ${longTasks.current}\n` +
-      `${bufferSize.x}×${bufferSize.y} px · DPR ${gl.getPixelRatio().toFixed(2)}\n` +
-      `${memory.geometries} geometries · ${memory.textures} textures · ${gl.info.programs?.length ?? 0} programs\n` +
-      heapLabel +
-      `${navigator.hardwareConcurrency ?? '?'} threads · ${nav.deviceMemory ?? '?'} GB RAM`,
+      `${bufferSize.x}×${bufferSize.y} px · DPR ${gl.getPixelRatio().toFixed(2)}`,
     )
     longTasks.current = 0
   }, 2)

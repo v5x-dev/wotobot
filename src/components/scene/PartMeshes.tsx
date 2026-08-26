@@ -540,6 +540,80 @@ function HoleColliders({
   )
 }
 
+type HoleCollider = {
+  hole: ReturnType<typeof holesForPart>[number]
+  partId: number
+  position: Vector3
+  rotation: Quaternion
+}
+
+function SceneHoleColliders({
+  parts,
+  show,
+}: {
+  parts: PlacedPart[]
+  show: boolean
+}) {
+  const meshRef = useRef<InstancedMesh>(null)
+  const colliders = useMemo(() => {
+    const result: HoleCollider[] = []
+    const partRotation = new Quaternion()
+    const holeRotation = new Quaternion()
+    const position = new Vector3()
+    const offset = new Vector3()
+    for (const part of parts) {
+      eulerToQuat(part.rotation, partRotation)
+      position.set(...part.position)
+      for (const hole of holesForPart(part)) {
+        offset.set(...hole.position).applyQuaternion(partRotation).add(position)
+        holeRotation.set(...hole.rotation).premultiply(partRotation)
+        result.push({
+          hole,
+          partId: part.instanceId,
+          position: offset.clone(),
+          rotation: holeRotation.clone(),
+        })
+      }
+    }
+    return result
+  }, [parts])
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current
+    if (!mesh) return
+    const matrix = new Matrix4()
+    const scale = new Vector3()
+    for (let index = 0; index < colliders.length; index += 1) {
+      const collider = colliders[index]
+      scale.set(collider.hole.size[0], collider.hole.size[1], 1)
+      matrix.compose(collider.position, collider.rotation, scale)
+      mesh.setMatrixAt(index, matrix)
+    }
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.computeBoundingSphere()
+  }, [colliders])
+
+  if (colliders.length === 0) return null
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined, undefined, colliders.length]}
+      userData={{ holeKind: 'instanced-holes', holeColliders: colliders, skipOutline: true }}
+      renderOrder={20}
+    >
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        color="#3EA6FF"
+        side={DoubleSide}
+        transparent
+        opacity={show ? 0.45 : 0}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  )
+}
+
 function aluminumMaterial(color: [number, number, number] | null, isPreview: boolean) {
   if (!color) return isPreview ? preview : aluminum
   const material = (isPreview ? preview : aluminum).clone()
@@ -1099,7 +1173,6 @@ export function SceneParts({
         || connectedIds.has(part.instanceId)
         || part.instanceId === primaryId
         || showHoles
-        || detectHoles
         || wireframe
       const details = mustStayEditable ? null : instancedCatalogDetails(part)
       if (!mustStayEditable && isBatchableStructure(part)) {
@@ -1127,9 +1200,15 @@ export function SceneParts({
       instancedGroups: groups,
       batchedParts: batched.length >= 2 ? batched : [],
     }
-  }, [connectedIds, detectHoles, parts, primaryId, selectedIds, showHoles, visibility, wireframe])
+  }, [connectedIds, parts, primaryId, selectedIds, showHoles, visibility, wireframe])
   return (
     <>
+      {(showHoles || detectHoles) && (
+        <SceneHoleColliders
+          parts={parts.filter((part) => isPartVisible(part, visibility))}
+          show={showHoles}
+        />
+      )}
       {instancedGroups.map((group) => (
         <Suspense key={group.signature} fallback={null}>
           <InstancedCatalogParts group={group} interactive={interactive} onSelect={onSelect} />
@@ -1167,8 +1246,6 @@ export function SceneParts({
             <Suspense fallback={<ModelLoadingPlaceholder part={part} />}>
               <PlacedPartMesh
                 part={part}
-                showHoles={showHoles}
-                detectHoles={detectHoles}
                 sprocketPhase={sprocketPhases.get(part.instanceId)}
               />
             </Suspense>

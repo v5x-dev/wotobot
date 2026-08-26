@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { OrbitControls as ThreeOrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Vector3, type Camera } from 'three'
-import { withoutTrackpadPinchAcceleration } from './wheelNormalization'
+import { createWheelNormalizer } from './wheelNormalization'
 
 /** OrbitControls dampingFactor is a per-frame lerp, authored against 60fps. */
 const DAMPING_FPS = 60
@@ -19,8 +19,9 @@ type OrbitControlsWheelInternals = {
 function preserveTrackpadPinchPrecision(controls: ThreeOrbitControls) {
   const internals = controls as unknown as OrbitControlsWheelInternals
   const normalizeWheelEvent = internals._customWheelEvent.bind(controls)
+  const normalizeInput = createWheelNormalizer()
   internals._customWheelEvent = (event) => (
-    normalizeWheelEvent(withoutTrackpadPinchAcceleration(event))
+    normalizeWheelEvent(normalizeInput(event))
   )
 }
 

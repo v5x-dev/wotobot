@@ -25,7 +25,7 @@ const IDENTITY: Matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 const KEPT_ENTITY = /\b(?:PRODUCT|PRODUCT_DEFINITION_FORMATION(?:_WITH_SPECIFIED_SOURCE)?|PRODUCT_DEFINITION|NEXT_ASSEMBLY_USAGE_OCCURRENCE|PRODUCT_DEFINITION_SHAPE|CONTEXT_DEPENDENT_SHAPE_REPRESENTATION|REPRESENTATION_RELATIONSHIP|REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION|ITEM_DEFINED_TRANSFORMATION|AXIS2_PLACEMENT_3D|CARTESIAN_POINT|DIRECTION|SI_UNIT|CONVERSION_BASED_UNIT)\s*\(/i
 
 function round(value: number) {
-  return Math.abs(value) < 0.0000005 ? 0 : Math.round(value * 1_000_000) / 1_000_000
+  return Math.abs(value) < 1e-12 ? 0 : Math.round(value * 1e12) / 1e12
 }
 
 function splitArguments(source: string) {
@@ -217,9 +217,10 @@ export function parseStepMetadata(source: string, onProgress?: (percent: number)
     if (product) definitionProduct.set(definition, product)
   }
 
+  const usageById = new Map(usages.map((usage) => [usage.id, usage]))
   const usageTransforms = new Map<string, Matrix>()
   for (const [pds, definition] of pdsDefinition) {
-    const usage = usages.find((candidate) => candidate.id === definition)
+    const usage = usageById.get(definition)
     const transform = transforms.get(relationships.get(contextRelation.get(pds) ?? '') ?? '')
     if (!usage || !transform) continue
     const item1 = placementMatrix(placements.get(transform.item1 ?? ''), points, directions)

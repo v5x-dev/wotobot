@@ -383,6 +383,38 @@ describe('stepMetadataToParts', () => {
     expect(result.skipped).toEqual([])
   })
 
+  it('orients an Onshape standoff with the source frame instead of a palette default', () => {
+    const sourceRotation = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI / 2)
+    const matrix = new Matrix4().makeRotationFromQuaternion(sourceRotation)
+    const elements = matrix.elements
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        {
+          instanceId: 'standoff',
+          productId: '276-2013',
+          name: '1" Long #8-32 Standoff (276-2013)',
+          kind: 'part',
+          path: [],
+          position: [2, 3, 4],
+          rotation: [0, 0, 90],
+          basis: [
+            elements[0], elements[4], elements[8],
+            elements[1], elements[5], elements[9],
+            elements[2], elements[6], elements[10],
+          ],
+        },
+      ],
+    })
+
+    const axis = new Vector3(0, 0, 1).applyEuler(new Euler(...result.parts[0].rotation))
+    const sourceY = new Vector3(0, 1, 0).applyQuaternion(sourceRotation)
+    expect(axis.x).toBeCloseTo(sourceY.x)
+    expect(axis.y).toBeCloseTo(sourceY.y)
+    expect(axis.z).toBeCloseTo(sourceY.z)
+  })
+
   it('recognizes the Onshape 5.6 inch standoff', () => {
     const result = stepMetadataToParts({
       schema: null,
@@ -396,8 +428,10 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[0]).toMatchObject({
       key: 'Structure:SNDF:Standoff',
       param1: '5.6in',
-      rotation: [Math.PI / 2, 0, 0],
     })
+    expect(result.parts[0].rotation[0]).toBeCloseTo(-Math.PI / 2)
+    expect(result.parts[0].rotation[1]).toBeCloseTo(0)
+    expect(result.parts[0].rotation[2]).toBeCloseTo(0)
   })
 
   it('preserves arbitrary decimal and fractional standoff lengths', () => {

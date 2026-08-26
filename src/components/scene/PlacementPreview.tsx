@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { Suspense, useEffect, useRef } from 'react'
-import { BufferGeometry, DoubleSide, Group, Plane, Quaternion, Vector3, type Object3D } from 'three'
+import { BufferGeometry, DoubleSide, Group, Plane, Quaternion, Vector3, type Intersection, type Object3D } from 'three'
 import { snapVec3 } from '@/model/grid'
 import { eulerToQuat, quatToEuler } from '@/model/math'
 import { holeFaceFromHit, snapPlacement, type HoleFace } from '@/model/placementSnap'
@@ -33,14 +33,33 @@ function toPending(part: PlacedPart) {
   return { key: part.key, param1: part.param1, param2: part.param2, shape: part.shape }
 }
 
-function readHole(object: Object3D) {
+function readHole(hit: Intersection<Object3D>) {
+  const { object } = hit
+  if (object.userData.holeKind === 'instanced-holes' && hit.instanceId != null) {
+    const collider = object.userData.holeColliders?.[hit.instanceId] as {
+      hole: HoleTemplate
+      partId: number
+      position: Vector3
+      rotation: Quaternion
+    } | undefined
+    if (!collider) return null
+    return {
+      hole: collider.hole,
+      partId: collider.partId,
+      worldPosition: collider.position,
+      worldForward: new Vector3(0, 0, 1).applyQuaternion(collider.rotation),
+      worldRotation: collider.rotation,
+    }
+  }
   if (object.userData.holeKind !== 'hole' || !object.userData.hole || object.userData.partId == null) {
     return null
   }
   return {
     hole: object.userData.hole as HoleTemplate,
     partId: object.userData.partId as number,
-    parent: object.parent,
+    worldPosition: object.parent?.getWorldPosition(new Vector3()) ?? hit.point.clone(),
+    worldForward: object.parent?.getWorldDirection(new Vector3()) ?? new Vector3(0, 0, 1),
+    worldRotation: null,
   }
 }
 
@@ -138,29 +157,25 @@ export function PlacementPreview({
     let hoverPoint: Vector3 | null = null
     for (const item of hits) {
       if (group.getObjectById(item.object.id) || item.object.userData.isOutline) continue
-      const hole = readHole(item.object)
+      const hole = readHole(item)
       if (hole) {
         // Raycast face normals are local to the collider. Convert them before
         // comparing them with the hole's world-space axis.
         const hitNormal = item.face
-          ? _hitNormal.copy(item.face.normal).transformDirection(item.object.matrixWorld)
-          : hole.parent?.getWorldDirection(_hitNormal) ?? _hitNormal.set(0, 0, 1)
+          ? hole.worldRotation
+            ? _hitNormal.copy(item.face.normal).applyQuaternion(hole.worldRotation).normalize()
+            : _hitNormal.copy(item.face.normal).transformDirection(item.object.matrixWorld)
+          : _hitNormal.copy(hole.worldForward)
         // Double-sided hole colliders report the triangle's front normal even
         // when the ray hits their back. Orient it toward the ray origin so the
         // selected face follows the side the pointer is actually on.
         if (hitNormal.dot(raycaster.ray.direction) > 0) hitNormal.negate()
-        const worldForward = hole.parent
-          ? hole.parent.getWorldDirection(new Vector3())
-          : new Vector3(0, 0, 1)
-        const worldPosition = hole.parent
-          ? hole.parent.getWorldPosition(new Vector3())
-          : item.point.clone()
         holeFace = holeFaceFromHit(
           {
             ...hole.hole,
             partId: hole.partId,
-            worldPosition,
-            worldForward,
+            worldPosition: hole.worldPosition,
+            worldForward: hole.worldForward,
           },
           hitNormal,
           flipRef.current,

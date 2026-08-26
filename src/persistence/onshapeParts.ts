@@ -1,49 +1,10 @@
 import { PARTS } from '@/model/partsCatalog'
 import { defaultParamValue, partKey, type PartDefinition, type PlacedPart } from '@/model/parts'
+import { alignCatalogPart, sourceQuaternion } from './onshapeAlignment'
 import type { StepMetadata, StepPartMetadata } from './stepMetadataParser'
-import { Euler, Matrix4, Quaternion, Vector3 } from 'three'
 
 const METERS_TO_INCHES = 39.37007874015748
 const MILLIMETERS_TO_INCHES = 1 / 25.4
-const CATALOG_EXTRUSION_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
-  new Matrix4().set(
-    0, 1, 0, 0,
-    0, 0, -1, 0,
-    -1, 0, 0, 0,
-    0, 0, 0, 1,
-  ),
-)
-const CATALOG_ANGLE_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
-  new Matrix4().set(
-    0, -1, 0, 0,
-    0, 0, -1, 0,
-    1, 0, 0, 0,
-    0, 0, 0, 1,
-  ),
-)
-const CATALOG_RESERVOIR_TO_ONSHAPE = new Quaternion().setFromAxisAngle(
-  new Vector3(1, 0, 0),
-  Math.PI / 2,
-)
-const CATALOG_U_CHANNEL_TO_ONSHAPE = new Quaternion().setFromAxisAngle(
-  new Vector3(1, 0, 0),
-  -Math.PI / 2,
-)
-const RUBBER_BUMPER_ROTATION_OFFSET = new Quaternion().setFromAxisAngle(
-  new Vector3(1, 0, 0),
-  Math.PI,
-)
-const ON_SHAPE_U_CHANNEL_CENTER = new Vector3(-3.5, -0.4455, 0)
-const CATALOG_U_CHANNEL_CENTER = new Vector3(0, -0.008, -0.477)
-const CATALOG_SHAFT_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
-  new Matrix4().set(
-    0, 0, 1, 0,
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 0, 1,
-  ),
-)
-const ON_SHAPE_SHAFT_COLLAR_CENTER = new Vector3(4.2806, 5.6968, 7.9749).multiplyScalar(MILLIMETERS_TO_INCHES)
 
 export type StepPartImport = {
   parts: PlacedPart[]
@@ -195,118 +156,6 @@ function centerOnGrid(parts: PlacedPart[]) {
   }
 }
 
-function sourceQuaternion(source: StepPartMetadata) {
-  if (source.basis) {
-    const [m00, m01, m02, m10, m11, m12, m20, m21, m22] = source.basis
-    return new Quaternion().setFromRotationMatrix(new Matrix4().set(
-      m00, m01, m02, 0,
-      m10, m11, m12, 0,
-      m20, m21, m22, 0,
-      0, 0, 0, 1,
-    )).normalize()
-  }
-  return new Quaternion().setFromEuler(new Euler(
-    source.rotation[0] * Math.PI / 180,
-    source.rotation[1] * Math.PI / 180,
-    source.rotation[2] * Math.PI / 180,
-    'XYZ',
-  ))
-}
-
-function editorRotation(rotation: Quaternion): [number, number, number] {
-  const euler = new Euler().setFromQuaternion(rotation, 'XYZ')
-  return [euler.x, euler.y, euler.z]
-}
-
-function alignCatalogPart(
-  position: [number, number, number],
-  sourceRotation: Quaternion,
-  definition: PartDefinition,
-  param1: string,
-  param2: string,
-) {
-  if (definition.id === 'TANK') {
-    return {
-      position,
-      rotation: editorRotation(sourceRotation.clone().multiply(CATALOG_RESERVOIR_TO_ONSHAPE)),
-    }
-  }
-
-  if (definition.id === 'CLMP') {
-    return {
-      position: ON_SHAPE_SHAFT_COLLAR_CENTER.clone()
-        .applyQuaternion(sourceRotation)
-        .add(new Vector3(...position))
-        .toArray() as [number, number, number],
-      rotation: editorRotation(sourceRotation.clone().multiply(CATALOG_SHAFT_TO_ONSHAPE)),
-    }
-  }
-
-  if (definition.id === 'SHFT') {
-    const length = Number(param2)
-    const halfLengthDelta = Number.isFinite(length) ? length / 2 - 6 : 0
-    const highStrength = param1 === 'High Strength'
-    const sourceOffset = highStrength
-      ? new Vector3(halfLengthDelta, 0, 0)
-      : new Vector3(0, 0, -halfLengthDelta)
-    return {
-      position: sourceOffset.applyQuaternion(sourceRotation).add(new Vector3(...position)).toArray() as [number, number, number],
-      rotation: editorRotation(
-        highStrength
-          ? sourceRotation.clone().multiply(CATALOG_SHAFT_TO_ONSHAPE)
-          : sourceRotation,
-      ),
-    }
-  }
-
-  if (definition.id === 'UCHL') {
-    const catalogRotation = sourceRotation.clone().multiply(CATALOG_U_CHANNEL_TO_ONSHAPE)
-    const sourceCenter = ON_SHAPE_U_CHANNEL_CENTER.clone().applyQuaternion(sourceRotation)
-    const catalogCenter = CATALOG_U_CHANNEL_CENTER.clone().applyQuaternion(catalogRotation)
-    return {
-      position: new Vector3(...position).add(sourceCenter).sub(catalogCenter).toArray() as [number, number, number],
-      rotation: editorRotation(catalogRotation),
-    }
-  }
-
-  if (definition.id === 'RBMP') {
-    return {
-      position,
-      rotation: editorRotation(sourceRotation.clone().multiply(RUBBER_BUMPER_ROTATION_OFFSET)),
-    }
-  }
-
-  if (definition.id === 'SNDF') {
-    return {
-      position,
-      rotation: [Math.PI / 2, 0, 0] as [number, number, number],
-    }
-  }
-
-  if (definition.id !== 'CCHL' && definition.id !== 'ANGL') {
-    return { position, rotation: editorRotation(sourceRotation) }
-  }
-
-  const holes = Number(param2)
-  if (!Number.isFinite(holes)) return { position, rotation: editorRotation(sourceRotation) }
-  const sourceOffset = definition.id === 'CCHL'
-    ? new Vector3(0, 0.052, -holes * 0.25)
-    : param1 === '2x2'
-      ? new Vector3(0.2496, 0.046, -(holes - 1) * 0.25 - 0.002568)
-      : new Vector3(-0.002, 0.044, -(holes - 1) * 0.25)
-  const alignedPosition = sourceOffset.applyQuaternion(sourceRotation).add(new Vector3(...position))
-  const alignedEuler = new Euler().setFromQuaternion(
-    sourceRotation.clone().multiply(
-      definition.id === 'ANGL' ? CATALOG_ANGLE_TO_ONSHAPE : CATALOG_EXTRUSION_TO_ONSHAPE,
-    ),
-    'XYZ',
-  )
-  return {
-    position: alignedPosition.toArray() as [number, number, number],
-    rotation: [alignedEuler.x, alignedEuler.y, alignedEuler.z] as [number, number, number],
-  }
-}
-
 type MetadataInput = StepMetadata | {
   source: { units: string }
   parts: StepPartMetadata[]
@@ -344,7 +193,7 @@ export function stepMetadataToParts(
     }
     const transform = alignCatalogPart(
       editorPosition(source.position, scale),
-      sourceQuaternion(source),
+      sourceQuaternion(source.basis, source.rotation),
       definition,
       param1,
       param2,
