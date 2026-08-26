@@ -429,8 +429,8 @@ export const PARTS: PartDefinition[] = [
       {
         "param1": "2.50in",
         "param2": "",
-        "meshName": "2.50in",
-        "fbx": null
+        "meshName": "SCRW_2.50in",
+        "fbx": "Structure/Star Drive Screws.fbx"
       },
       {
         "param1": "7/8in",
@@ -502,6 +502,19 @@ export const PARTS: PartDefinition[] = [
     "mesh": null
   },
   {
+    "id": "HING",
+    "name": "Hinge",
+    "group": "Structure",
+    "unityGroup": "Structure",
+    "connectingPart": false,
+    "generator": "single",
+    "icon": null,
+    "param1": null,
+    "param2": null,
+    "variants": [],
+    "mesh": null
+  },
+  {
     "id": "SNDF",
     "name": "Standoff",
     "group": "Structure",
@@ -524,6 +537,7 @@ export const PARTS: PartDefinition[] = [
         "1/2in",
         "3/4in",
         "5.00in",
+        "5.60in",
         "2.50in",
         "1.00in",
         "1/4in",
@@ -568,6 +582,12 @@ export const PARTS: PartDefinition[] = [
         "param2": "",
         "meshName": "5.00in",
         "fbx": "Structure/Standoffs.fbx"
+      },
+      {
+        "param1": "5.60in",
+        "param2": "",
+        "meshName": "5.60in",
+        "fbx": null
       },
       {
         "param1": "2.50in",
@@ -1261,25 +1281,25 @@ export const PARTS: PartDefinition[] = [
       {
         "param1": "V2",
         "param2": "2.00in",
-        "meshName": "2.00in New",
+        "meshName": "2” Omni-Directional Wheel",
         "fbx": "Shafts and Hardware/Wheels/V2OmniWheels.fbx"
       },
       {
         "param1": "V2",
         "param2": "2.75in",
-        "meshName": "2.75in New",
+        "meshName": "275 (220mm Travel) Omni-Directional Anti-Static Wheel",
         "fbx": "Shafts and Hardware/Wheels/V2OmniWheels.fbx"
       },
       {
         "param1": "V2",
         "param2": "4.00in",
-        "meshName": "4.00in New",
+        "meshName": "4 (320mm Travel) Omni-Directional Anti-Static Wheel",
         "fbx": "Shafts and Hardware/Wheels/V2OmniWheels.fbx"
       },
       {
         "param1": "V2",
         "param2": "3.25in",
-        "meshName": "3.25in New",
+        "meshName": "325 (260mm Travel) Omni-Directional Anti-Static Wheel",
         "fbx": "Shafts and Hardware/Wheels/V2OmniWheels.fbx"
       }
     ],
@@ -1586,6 +1606,9 @@ export const PARTS: PartDefinition[] = [
         "18T",
         "15T",
         "10T",
+        "8T",
+        "16T",
+        "32T",
         "30T",
         "6T",
         "12T",
@@ -1617,6 +1640,24 @@ export const PARTS: PartDefinition[] = [
         "param2": "10T",
         "meshName": "SPKT_10T",
         "fbx": "Gears and Sprockets/Sprockets.fbx"
+      },
+      {
+        "param1": "Normal",
+        "param2": "8T",
+        "meshName": "SPKT_8T",
+        "fbx": "Gears and Sprockets/6P Sprockets.fbx"
+      },
+      {
+        "param1": "Normal",
+        "param2": "16T",
+        "meshName": "SPKT_16T",
+        "fbx": "Gears and Sprockets/6P Sprockets.fbx"
+      },
+      {
+        "param1": "Normal",
+        "param2": "32T",
+        "meshName": "SPKT_32T",
+        "fbx": "Gears and Sprockets/6P Sprockets.fbx"
       },
       {
         "param1": "High Strength",

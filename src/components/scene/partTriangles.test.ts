@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Mesh, MeshBasicMaterial } from 'three'
 import {
   collectPartTriangles,
+  collectPartTriangleCount,
   formatPartTriangleOverlay,
   formatTris,
   meshTriangleCount,
@@ -74,5 +75,18 @@ describe('part triangle overlay', () => {
       { name: 'Motor', triangles: 36 },
       { name: 'Angle', triangles: 20 },
     ])
+  })
+
+  it('counts meshes belonging to one selected part', () => {
+    const material = new MeshBasicMaterial()
+    const root = new Group()
+    const selected = partGroup('Motor', new Mesh(triangles(12), material), new Mesh(triangles(8), material))
+    selected.userData.partId = 42
+    const other = partGroup('Motor', new Mesh(triangles(30), material))
+    other.userData.partId = 43
+    root.add(selected, other)
+
+    expect(collectPartTriangleCount(root, 42)).toBe(20)
+    expect(collectPartTriangleCount(root, null)).toBeNull()
   })
 })

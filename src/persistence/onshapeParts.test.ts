@@ -26,6 +26,7 @@ describe('stepMetadataToParts', () => {
     const result = stepMetadataToParts(metadata)
     expect(result.parts).toHaveLength(10)
     expect(result.parts[0]).toMatchObject({ key: 'Structure:CCHL:C-Channel', param1: '1x3', param2: '20' })
+    expect(result.parts[0].onshapeName).toBe('1 x 3 x 1 x 20 Aluminum C-Channel (276-4359)')
     expect(result.parts[0].position[0]).toBeCloseTo(0.975)
     expect(result.parts[0].position[1]).toBeCloseTo(2.052)
     expect(result.parts[0].position[2]).toBeCloseTo(-0.625)
@@ -44,9 +45,13 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[4]).toMatchObject({ key: 'Motion:OMNI:Omni Wheel', param1: 'V2', param2: '2.75in' })
     expect(result.parts[5]).toMatchObject({ key: 'Electronics:SNSR:Sensor', param1: 'Rotation', param2: 'V5' })
     expect(result.parts[6]).toMatchObject({ key: 'Structure:ANGL:Angle', param1: '2x2', param2: '5' })
-    expect(result.parts[6].position[0]).toBeCloseTo(0.1326)
+    expect(result.parts[6].position[0]).toBeCloseTo(0.2246)
     expect(result.parts[6].position[1]).toBeCloseTo(0.046)
     expect(result.parts[6].position[2]).toBeCloseTo(0.372432)
+    const angleLengthAxis = new Vector3(1, 0, 0).applyEuler(new Euler(...result.parts[6].rotation))
+    expect(angleLengthAxis.x).toBeCloseTo(0)
+    expect(angleLengthAxis.y).toBeCloseTo(0)
+    expect(angleLengthAxis.z).toBeCloseTo(1)
     expect(result.parts[7]).toMatchObject({ key: 'Motion:SHFT:Shaft', param1: 'High Strength', param2: '10.1' })
     expect(result.parts[7].position[0]).toBeCloseTo(-0.975)
     expect(result.parts[7].position[1]).toBeCloseTo(0)
@@ -144,6 +149,73 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[1].position[0]).toBeCloseTo(0.875)
   })
 
+  it('aligns an Onshape U-channel profile and preserves its hole count', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        {
+          instanceId: 'u-channel',
+          productId: '276-7285',
+          name: '2 x 2 x 2 x 6 Aluminum U-Channel (276-7285)',
+          kind: 'part',
+          path: [],
+          position: [4, 2, 7],
+          rotation: [-90, 0, 0],
+          basis: [1, 0, 0, 0, 0, 1, 0, -1, 0],
+        },
+        { instanceId: 'motor', productId: 'motor', name: 'V5 Smart Motor', kind: 'part', path: [], position: [4, 2, 7], rotation: [0, 0, 0] },
+      ],
+    })
+
+    const channel = result.parts[0]
+    expect(channel).toMatchObject({
+      key: 'Structure:UCHL:U-Channel',
+      param1: '2x2',
+      param2: '6',
+    })
+    expect(channel.rotation[0]).toBeCloseTo(-Math.PI)
+    expect(channel.rotation[1]).toBeCloseTo(0)
+    expect(channel.rotation[2]).toBeCloseTo(0)
+    const motor = result.parts[1]
+    expect(channel.position[0] - motor.position[0]).toBeCloseTo(-3.5)
+    expect(channel.position[1] - motor.position[1]).toBeCloseTo(-0.008)
+    expect(channel.position[2] - motor.position[2]).toBeCloseTo(-0.0315)
+  })
+
+  it('aligns an imported rubber bumper with its mounting axis', () => {
+    const sourceAngle = -83.9043 * Math.PI / 180
+    const sourceRotation = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), sourceAngle)
+    const matrix = new Matrix4().makeRotationFromQuaternion(sourceRotation)
+    const elements = matrix.elements
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        {
+          instanceId: 'bumper',
+          productId: '276-7499',
+          name: 'Rubber Bumper (276-7499)',
+          kind: 'part',
+          path: [],
+          position: [0, 0, 0],
+          rotation: [-83.9043, 0, 0],
+          basis: [
+            elements[0], elements[4], elements[8],
+            elements[1], elements[5], elements[9],
+            elements[2], elements[6], elements[10],
+          ],
+        },
+      ],
+    })
+
+    const bumper = result.parts[0]
+    expect(bumper).toMatchObject({ key: 'Motion:RBMP:Rubber Bumper' })
+    expect(bumper.rotation[0]).toBeCloseTo(sourceAngle + Math.PI)
+    expect(bumper.rotation[1]).toBeCloseTo(0)
+    expect(bumper.rotation[2]).toBeCloseTo(0)
+  })
+
   it('centers imported positions and places the lowest point on the grid', () => {
     const result = stepMetadataToParts({
       schema: null,
@@ -158,5 +230,170 @@ describe('stepMetadataToParts', () => {
       [-2, 0, -3],
       [2, 4, 3],
     ])
+  })
+
+  it('uses user mappings for parts that cannot be matched by name', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'mystery-1', productId: 'custom', name: 'Mystery component', kind: 'part', path: [], position: [1, 2, 3], rotation: [0, 0, 0] },
+      ],
+    }, {
+      'mystery-1': 'Electronics:MOTR:Motor',
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Electronics:MOTR:Motor',
+      param1: '11W',
+      position: [0, 0, 0],
+    })
+  })
+
+  it('recognizes the Onshape 8T 6P sprocket as normal strength', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'sprocket-8t', productId: '276-8030', name: '8T Sprocket, 6P (276-8030)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Motion:SPKT:Sprocket',
+      param1: 'Normal',
+      param2: '8T',
+    })
+  })
+
+  it('recognizes the Onshape 16T 6P sprocket as normal strength', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'sprocket-16t', productId: '276-8328', name: '16T Sprocket, 6P (276-8328)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Motion:SPKT:Sprocket',
+      param1: 'Normal',
+      param2: '16T',
+    })
+  })
+
+  it('recognizes the Onshape 32T 6P sprocket as normal strength', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'sprocket-32t', productId: '276-8330', name: '32T Sprocket, 6P (276-8330)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Motion:SPKT:Sprocket',
+      param1: 'Normal',
+      param2: '32T',
+    })
+  })
+
+  it('recognizes a pneumatic cylinder rod as a known subcomponent', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'cylinder-rod', productId: '276', name: '25mm Stroke Pneumatic Cylinder Rod (276', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.parts).toEqual([])
+    expect(result.skipped).toEqual([])
+  })
+
+  it('recognizes the Onshape 5.6 inch standoff', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'standoff-5.6', productId: '276-2013', name: '5.6" Long #8-32 Standoff (276-2013)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Structure:SNDF:Standoff',
+      param1: '5.6in',
+      rotation: [Math.PI / 2, 0, 0],
+    })
+  })
+
+  it('preserves arbitrary decimal and fractional standoff lengths', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'standoff-decimal', productId: 'custom', name: '3.25" Long #8-32 Standoff', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+        { instanceId: 'standoff-fraction', productId: 'custom', name: '2-1/2" Long #8-32 Standoff', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts.map((part) => part.param1)).toEqual(['3.25in', '2-1/2in'])
+  })
+
+  it('recognizes the 2-1/2 inch star drive screw', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'screw-2.5', productId: '276-8016', name: '#8-32 x 2-1/2" Star Drive Screw (276-8016)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Structure:SCRW:Screw',
+      param1: '2.50in',
+    })
+  })
+
+  it('recognizes the low profile bearing flat', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'bearing-flat', productId: '276-8023', name: 'Low Profile Bearing Flat (276-8023)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Motion:BRNG:Flat Bearing',
+      param1: 'Low Profile',
+    })
+  })
+
+  it('imports the three Onshape hinge components as one Wotobot hinge', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'hinge-1', productId: '', name: 'VEX-HINGE-1 RevA', kind: 'part', path: [], position: [1, 2, 3], rotation: [0, 0, 0] },
+        { instanceId: 'hinge-2', productId: '', name: 'VEX-HINGE-2 RevA', kind: 'part', path: [], position: [1, 2, 3], rotation: [0, 0, 0] },
+        { instanceId: 'hinge-pin', productId: '', name: 'VEX-HINGE-PIN', kind: 'part', path: [], position: [1, 2, 3], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts).toHaveLength(1)
+    expect(result.parts[0]).toMatchObject({
+      key: 'Structure:HING:Hinge',
+      position: [0, 0, 0],
+    })
   })
 })

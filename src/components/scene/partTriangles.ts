@@ -40,6 +40,15 @@ function partKindOf(object: Object3D) {
   return null
 }
 
+function partIdOf(object: Object3D) {
+  let current: Object3D | null = object
+  while (current) {
+    if (typeof current.userData.partId === 'number') return current.userData.partId
+    current = current.parent
+  }
+  return null
+}
+
 export function pluralizePartName(name: string) {
   if (/s$/i.test(name)) return name
   return `${name}s`
@@ -74,6 +83,16 @@ export function collectPartTriangles(root: Object3D) {
     .map(([name, triangles]) => ({ name, triangles }))
     .filter((entry) => entry.triangles > 0)
     .sort((a, b) => b.triangles - a.triangles || a.name.localeCompare(b.name))
+}
+
+export function collectPartTriangleCount(root: Object3D, partId: number | null) {
+  if (partId == null) return null
+  let triangles = 0
+  root.traverse((object) => {
+    if (!isMesh(object) || skipMesh(object) || partIdOf(object) !== partId) return
+    triangles += meshTriangleCount(object)
+  })
+  return triangles
 }
 
 export function formatPartTriangleOverlay(stats: PartTriangleStat[]) {

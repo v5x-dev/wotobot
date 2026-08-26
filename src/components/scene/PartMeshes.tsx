@@ -438,6 +438,29 @@ function SprocketPart({
   return <primitive object={object} rotation={[0, 0, toothPhase]} />
 }
 
+function standoffLengthInches(value: string) {
+  const normalized = value.trim().replace(/in$/i, '')
+  const mixed = normalized.match(/^(\d+)-(\d+)\/(\d+)$/)
+  if (mixed) return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3])
+  const fraction = normalized.match(/^(\d+)\/(\d+)$/)
+  if (fraction) return Number(fraction[1]) / Number(fraction[2])
+  const inches = Number(normalized)
+  return Number.isFinite(inches) && inches > 0 ? inches : 1
+}
+
+function StandoffPart({ part, finish }: { part: PlacedPart; finish: MeshFinish }) {
+  return (
+    <FbxMeshPart
+      url={modelUrl('Structure/Standoffs.fbx')}
+      meshName="SNDF 1in"
+      scale={[1, 1, standoffLengthInches(part.param1)]}
+      rotation={MODEL_ROTATION}
+      finish={finish}
+      color={part.color}
+    />
+  )
+}
+
 function PolycarbonatePart({ part, isPreview }: { part: PlacedPart; isPreview: boolean }) {
   const spec = part.shape
   const param1 = part.param1
@@ -571,6 +594,15 @@ export function PlacedPartMesh({
     )
   }
 
+  if (definition.id === 'SNDF') {
+    return (
+      <>
+        <StandoffPart part={part} finish={finish} />
+        {holes}
+      </>
+    )
+  }
+
   if (definition.id === 'CCHL' && definition.generator === 'aluminum') {
     const holeCount = Number(part.param2) || 15
     return (
@@ -655,7 +687,7 @@ export function PlacedPartMesh({
   const variant = variantFor(definition, part.param1, part.param2)
   const fbx = variant?.fbx ?? definition.mesh?.fbx
   const meshName = variant?.meshName || definition.mesh?.meshName || definition.name
-  const scale = fbx ? modelScaleFor(fbx) : 1
+  const scale = fbx ? modelScaleFor(fbx, meshName) : 1
   const modelScale = scale === 1 ? undefined : [scale, scale, scale] satisfies [number, number, number]
   if (!fbx) {
     return (
@@ -749,7 +781,7 @@ type InstancedCatalogGroup = {
 
 function instancedCatalogDetails(part: PlacedPart): Omit<InstancedCatalogGroup, 'signature' | 'parts'> | null {
   const definition = findPart(part.key)
-  if (!definition || definition.id === 'SPKT') return null
+  if (!definition || definition.id === 'SPKT' || definition.id === 'SNDF') return null
   if (definition.generator !== 'single' && definition.generator !== 'child') return null
 
   const variant = variantFor(definition, part.param1, part.param2)
@@ -759,7 +791,7 @@ function instancedCatalogDetails(part: PlacedPart): Omit<InstancedCatalogGroup, 
   return {
     url: modelUrl(fbx),
     meshName: variant?.meshName || definition.mesh?.meshName || definition.name,
-    scale: modelScaleFor(fbx),
+    scale: modelScaleFor(fbx, variant?.meshName || definition.mesh?.meshName || definition.name),
     modelRotation: fbx === 'pnmatics/NewRes.fbx' ? [Math.PI, 0, 0] : MODEL_ROTATION,
     metalness: definition.id === 'TANK' ? aluminum.metalness : undefined,
   }
@@ -1114,6 +1146,7 @@ export function SceneParts({
         return (
           <SelectablePart
             key={part.instanceId}
+            partId={part.instanceId}
             partKind={findPart(part.key)?.name ?? part.key}
             outline={outline}
             showGizmo={showGizmos && part.instanceId === primaryId}

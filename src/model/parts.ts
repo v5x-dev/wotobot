@@ -128,6 +128,7 @@ export type PartDefinition = {
 export type PlacedPart = {
   instanceId: number
   key: string
+  onshapeName?: string
   param1: string
   param2: string
   position: [number, number, number]

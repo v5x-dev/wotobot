@@ -10,7 +10,11 @@ import {
 
 describe('robot documents', () => {
   it('round trips parts, chains, camera, and custom polycarbonate shapes', () => {
-    const sprocketA = makePart('SPKT', { instanceId: 1, position: [1, 2, 3] })
+    const sprocketA = makePart('SPKT', {
+      instanceId: 1,
+      position: [1, 2, 3],
+      onshapeName: '16T Sprocket, 6P (276-8328)',
+    })
     const sprocketB = makePart('SPKT', { instanceId: 2, position: [3, 2, 3] })
     const polycarbonate = makePart('POLY', {
       instanceId: 3,

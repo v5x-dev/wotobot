@@ -13,10 +13,28 @@ const CATALOG_EXTRUSION_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
     0, 0, 0, 1,
   ),
 )
+const CATALOG_ANGLE_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
+  new Matrix4().set(
+    0, -1, 0, 0,
+    0, 0, -1, 0,
+    1, 0, 0, 0,
+    0, 0, 0, 1,
+  ),
+)
 const CATALOG_RESERVOIR_TO_ONSHAPE = new Quaternion().setFromAxisAngle(
   new Vector3(1, 0, 0),
   Math.PI / 2,
 )
+const CATALOG_U_CHANNEL_TO_ONSHAPE = new Quaternion().setFromAxisAngle(
+  new Vector3(1, 0, 0),
+  -Math.PI / 2,
+)
+const RUBBER_BUMPER_ROTATION_OFFSET = new Quaternion().setFromAxisAngle(
+  new Vector3(1, 0, 0),
+  Math.PI,
+)
+const ON_SHAPE_U_CHANNEL_CENTER = new Vector3(-3.5, -0.4455, 0)
+const CATALOG_U_CHANNEL_CENTER = new Vector3(0, -0.008, -0.477)
 const CATALOG_SHAFT_TO_ONSHAPE = new Quaternion().setFromRotationMatrix(
   new Matrix4().set(
     0, 0, 1, 0,
@@ -30,6 +48,8 @@ export type StepPartImport = {
   parts: PlacedPart[]
   skipped: StepPartMetadata[]
 }
+
+export type OnshapePartMappings = Record<string, string>
 
 type Match = {
   definition: PartDefinition
@@ -55,6 +75,9 @@ function matchPart(source: StepPartMetadata): Match | null {
 
   const channel = name.match(/\b1\s*x\s*(2|3|5)\s*x\s*1\s*x\s*(\d+)\b.*\bC-?Channel\b/i)
   if (channel) return { definition: catalogPart('CCHL'), param1: `1x${channel[1]}`, param2: channel[2] }
+
+  const uChannel = name.match(/\b2\s*x\s*2\s*x\s*2\s*x\s*(\d+)\b.*\bU-?Channel\b/i)
+  if (uChannel) return { definition: catalogPart('UCHL'), param1: '2x2', param2: uChannel[1] }
 
   const angle = name.match(/\b(1|2|3)\s*x\s*(1|2|3)\s*x\s*(\d+)\b.*\bAluminum Angle\b/i)
   if (angle) return { definition: catalogPart('ANGL'), param1: `${angle[1]}x${angle[2]}`, param2: angle[3] }
@@ -89,10 +112,9 @@ function matchPart(source: StepPartMetadata): Match | null {
     return { definition: catalogPart('SCRW'), param1: '2.50in' }
   }
 
-  const standoff = name.match(/\b(0\.5|1|5\.6)"\s+Long.*\bStandoff\b/i)
+  const standoff = name.match(/\b(\d+(?:\.\d+)?|\d+\/\d+|\d+-\d+\/\d+)"\s+Long.*\bStandoff\b/i)
   if (standoff) {
-    const size = standoff[1] === '0.5' ? '1/2in' : `${Number(standoff[1]).toFixed(2)}in`
-    return { definition: catalogPart('SNDF'), param1: size }
+    return { definition: catalogPart('SNDF'), param1: `${standoff[1]}in` }
   }
 
   const shaft = name.match(/(?:^|\s)(\d+(?:\.\d+)?)"\s+(High Strength|Standard) Shaft\b/i)
@@ -111,6 +133,12 @@ function matchPart(source: StepPartMetadata): Match | null {
     return { definition: catalogPart('CLMP'), param1: 'Normal', param2: 'Normal' }
   }
 
+  if (/\bLow Profile Bearing Flat\b/i.test(name)) {
+    return { definition: catalogPart('BRNG'), param1: 'Low Profile' }
+  }
+
+  if (/\bVEX-HINGE-1\s+RevA\b/i.test(name)) return { definition: catalogPart('HING') }
+
   const sprocket = name.match(/\b(\d+)T\s+(High Strength )?Sprocket\b/i)
   if (sprocket) return { definition: catalogPart('SPKT'), param1: sprocket[2] ? 'High Strength' : 'Normal', param2: `${sprocket[1]}T` }
 
@@ -122,13 +150,10 @@ function matchPart(source: StepPartMetadata): Match | null {
     return { definition: catalogPart('BLCK'), param1: 'High Strength' }
   }
 
-  if (/\bPneumatic Cylinder Rod\b/i.test(name)) return null
   if (/\bPneumatic Cylinder Body\b/i.test(name)) {
     const stroke = name.match(/\b(25|50|75)mm\b/)?.[1] ?? '25'
     return { definition: catalogPart('PNMT'), param1: `${stroke}mm`, param2: 'Normal' }
   }
-
-  if (/\b(?:Shaft Adapter|Gear Insert)\b/i.test(name)) return null
 
   const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g, ' ')
   const definition = PARTS.find((candidate) => {
@@ -136,6 +161,11 @@ function matchPart(source: StepPartMetadata): Match | null {
     return catalogName.length >= 5 && normalized.includes(catalogName)
   })
   return definition ? { definition } : null
+}
+
+function isKnownSubcomponent(source: StepPartMetadata) {
+  const name = `${source.name} ${source.productId} ${source.description ?? ''}`
+  return /\b(?:Pneumatic Cylinder Rod|Shaft Adapter|Gear Insert|VEX-HINGE-2(?:\s+RevA)?|VEX-HINGE-PIN)\b/i.test(name)
 }
 
 function unitScale(units: string) {
@@ -218,6 +248,30 @@ function alignCatalogPart(
     }
   }
 
+  if (definition.id === 'UCHL') {
+    const catalogRotation = sourceRotation.clone().multiply(CATALOG_U_CHANNEL_TO_ONSHAPE)
+    const sourceCenter = ON_SHAPE_U_CHANNEL_CENTER.clone().applyQuaternion(sourceRotation)
+    const catalogCenter = CATALOG_U_CHANNEL_CENTER.clone().applyQuaternion(catalogRotation)
+    return {
+      position: new Vector3(...position).add(sourceCenter).sub(catalogCenter).toArray() as [number, number, number],
+      rotation: editorRotation(catalogRotation),
+    }
+  }
+
+  if (definition.id === 'RBMP') {
+    return {
+      position,
+      rotation: editorRotation(sourceRotation.clone().multiply(RUBBER_BUMPER_ROTATION_OFFSET)),
+    }
+  }
+
+  if (definition.id === 'SNDF') {
+    return {
+      position,
+      rotation: [Math.PI / 2, 0, 0] as [number, number, number],
+    }
+  }
+
   if (definition.id !== 'CCHL' && definition.id !== 'ANGL') {
     return { position, rotation: editorRotation(sourceRotation) }
   }
@@ -227,11 +281,13 @@ function alignCatalogPart(
   const sourceOffset = definition.id === 'CCHL'
     ? new Vector3(0, 0.052, -holes * 0.25)
     : param1 === '2x2'
-      ? new Vector3(0.1576, 0.046, -(holes - 1) * 0.25 - 0.002568)
-      : new Vector3(-0.094, 0.044, -(holes - 1) * 0.25)
+      ? new Vector3(0.2496, 0.046, -(holes - 1) * 0.25 - 0.002568)
+      : new Vector3(-0.002, 0.044, -(holes - 1) * 0.25)
   const alignedPosition = sourceOffset.applyQuaternion(sourceRotation).add(new Vector3(...position))
   const alignedEuler = new Euler().setFromQuaternion(
-    sourceRotation.clone().multiply(CATALOG_EXTRUSION_TO_ONSHAPE),
+    sourceRotation.clone().multiply(
+      definition.id === 'ANGL' ? CATALOG_ANGLE_TO_ONSHAPE : CATALOG_EXTRUSION_TO_ONSHAPE,
+    ),
     'XYZ',
   )
   return {
@@ -245,14 +301,22 @@ type MetadataInput = StepMetadata | {
   parts: StepPartMetadata[]
 }
 
-export function stepMetadataToParts(metadata: MetadataInput): StepPartImport {
+export function stepMetadataToParts(
+  metadata: MetadataInput,
+  mappings: OnshapePartMappings = {},
+): StepPartImport {
   const parts: PlacedPart[] = []
   const skipped: StepPartMetadata[] = []
   const scale = unitScale('units' in metadata ? metadata.units : metadata.source.units)
 
   for (const source of metadata.parts) {
     if (source.kind === 'assembly') continue
-    const match = matchPart(source)
+    if (isKnownSubcomponent(source)) continue
+    const mappedKey = mappings[source.instanceId]
+    const mappedDefinition = mappedKey
+      ? PARTS.find((candidate) => partKey(candidate) === mappedKey)
+      : undefined
+    const match = mappedDefinition ? { definition: mappedDefinition } : matchPart(source)
     if (!match) {
       skipped.push(source)
       continue
@@ -260,7 +324,7 @@ export function stepMetadataToParts(metadata: MetadataInput): StepPartImport {
     const { definition } = match
     const param1 = match.param1 ?? defaultParamValue(definition.param1)
     const param2 = match.param2 ?? defaultParamValue(definition.param2)
-    const variantExists = definition.variants.length === 0 || definition.variants.some(
+    const variantExists = definition.id === 'SNDF' || definition.variants.length === 0 || definition.variants.some(
       (variant) => variant.param1 === param1 && (!variant.param2 || variant.param2 === param2),
     )
     if (!variantExists) {
@@ -277,6 +341,7 @@ export function stepMetadataToParts(metadata: MetadataInput): StepPartImport {
     parts.push({
       instanceId: parts.length + 1,
       key: partKey(definition),
+      onshapeName: source.name,
       param1,
       param2,
       position: transform.position,

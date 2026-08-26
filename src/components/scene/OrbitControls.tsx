@@ -1,13 +1,15 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { OrbitControls as ThreeOrbitControls } from 'three/addons/controls/OrbitControls.js'
-import type { Camera } from 'three'
+import { Vector3, type Camera } from 'three'
 import { withoutTrackpadPinchAcceleration } from './wheelNormalization'
 
 /** OrbitControls dampingFactor is a per-frame lerp, authored against 60fps. */
 const DAMPING_FPS = 60
 const MAX_DELTA = 0.1
 const CAMERA_SAVE_DELAY_MS = 120
+const KEYBOARD_MOVE_SPEED = 0.8
+const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD'])
 
 type NormalizedWheelEvent = Pick<WheelEvent, 'clientX' | 'clientY' | 'deltaY'>
 type OrbitControlsWheelInternals = {
@@ -42,6 +44,7 @@ export function OrbitControls({
   makeDefault,
   camera,
   enableDamping = true,
+  zoomToCursor = true,
   onEnd,
   ...props
 }: {
@@ -52,6 +55,7 @@ export function OrbitControls({
   minDistance?: number
   maxDistance?: number
   mouseButtons?: ThreeOrbitControls['mouseButtons']
+  zoomToCursor?: boolean
   onEnd?: (state: {
     target: [number, number, number]
     position: [number, number, number]
@@ -66,6 +70,8 @@ export function OrbitControls({
   const explCamera = camera ?? defaultCamera
   const explDomElement = (events.connected || gl.domElement) as HTMLElement
   const onEndRef = useRef(onEnd)
+  const pressedMoveKeys = useRef(new Set<string>())
+  const movement = useRef({ forward: new Vector3(), right: new Vector3(), offset: new Vector3() })
   const [controls] = useState(() => {
     const next = new ThreeOrbitControls(explCamera)
     preserveTrackpadPinchPrecision(next)
@@ -77,6 +83,25 @@ export function OrbitControls({
   }, [controls, explCamera])
 
   useFrame((_, delta) => {
+    const keys = pressedMoveKeys.current
+    if (keys.size > 0) {
+      const vectors = movement.current
+      explCamera.getWorldDirection(vectors.forward)
+      vectors.right.setFromMatrixColumn(explCamera.matrixWorld, 0)
+      vectors.offset.set(0, 0, 0)
+      if (keys.has('KeyW')) vectors.offset.add(vectors.forward)
+      if (keys.has('KeyS')) vectors.offset.sub(vectors.forward)
+      if (keys.has('KeyD')) vectors.offset.add(vectors.right)
+      if (keys.has('KeyA')) vectors.offset.sub(vectors.right)
+      if (vectors.offset.lengthSq() > 0) {
+        const speed = Math.max(controls.object.position.distanceTo(controls.target), 0.5)
+          * KEYBOARD_MOVE_SPEED * Math.min(delta, MAX_DELTA)
+        vectors.offset.normalize().multiplyScalar(speed)
+        controls.object.position.add(vectors.offset)
+        controls.target.add(vectors.offset)
+        invalidate()
+      }
+    }
     updateWithFrameRateIndependentDamping(controls, delta)
   }, -1)
 
@@ -84,6 +109,32 @@ export function OrbitControls({
     controls.connect(explDomElement)
     return () => controls.dispose()
   }, [controls, explDomElement])
+
+  useEffect(() => {
+    const stopMoving = () => {
+      pressedMoveKeys.current.clear()
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!MOVE_KEYS.has(event.code)) return
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return
+      pressedMoveKeys.current.add(event.code)
+      event.preventDefault()
+      invalidate()
+    }
+    const onKeyUp = (event: KeyboardEvent) => {
+      pressedMoveKeys.current.delete(event.code)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', stopMoving)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', stopMoving)
+    }
+  }, [invalidate])
 
   useEffect(() => {
     const renderNextFrame = () => invalidate()
@@ -120,5 +171,12 @@ export function OrbitControls({
     return () => set({ controls: previous })
   }, [makeDefault, controls, get, set])
 
-  return <primitive object={controls} enableDamping={enableDamping} {...props} />
+  return (
+    <primitive
+      object={controls}
+      enableDamping={enableDamping}
+      zoomToCursor={zoomToCursor}
+      {...props}
+    />
+  )
 }

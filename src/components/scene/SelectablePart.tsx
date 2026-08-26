@@ -405,6 +405,7 @@ function CombinedTransformGizmo({
 type OutlineKind = 'selected' | 'connected' | null
 
 type Props = {
+  partId?: number
   outline?: OutlineKind
   showGizmo?: boolean
   interactive?: boolean
@@ -430,6 +431,7 @@ function readTransform(group: Group): {
 }
 
 export function SelectablePart({
+  partId,
   outline = null,
   showGizmo = false,
   interactive = true,
@@ -585,7 +587,7 @@ export function SelectablePart({
     <>
       <group
         ref={groupRef}
-        userData={{ partKind }}
+        userData={{ partId, partKind }}
         onPointerDown={(event) => {
           if (!interactive || event.button !== 0) return
           event.stopPropagation()

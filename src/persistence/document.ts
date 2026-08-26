@@ -4,7 +4,7 @@ import { partsListText as formatPartsList } from '@/model/weight'
 
 export type { PlacedPart }
 
-export const DOCUMENT_VERSION = 5
+export const DOCUMENT_VERSION = 6
 export const UNTITLED_NAME = 'untitled.wbb'
 export const PASTE_OFFSET = 1
 
@@ -177,6 +177,7 @@ function asPart(value: unknown): PlacedPart | null {
   return {
     instanceId: record.instanceId,
     key: record.key,
+    onshapeName: typeof record.onshapeName === 'string' ? record.onshapeName : undefined,
     param1: record.param1,
     param2: record.param2,
     position,

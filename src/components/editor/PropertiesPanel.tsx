@@ -42,11 +42,13 @@ export function PropertiesPanel({
   parts,
   onChange,
   onShapeChange,
+  triangleCount,
 }: {
   part: PlacedPart | null
   parts: PlacedPart[]
   onChange: (position: [number, number, number], rotation: [number, number, number]) => void
   onShapeChange: (shape: PolycarbonateShape, width: string, height: string) => void
+  triangleCount: number | null
 }) {
   if (!part) return null
 
@@ -57,10 +59,20 @@ export function PropertiesPanel({
   const isPolycarbonate = findPart(part.key)?.generator === 'polycarbonate'
   const polyStatus = isPolycarbonate ? evaluatePolycarbonate(parts) : null
   const robotReasons = polyStatus?.over ? polycarbonateBudgetReasons(polyStatus) : []
+  const name = part.onshapeName ?? findPart(part.key)?.name ?? part.key
 
   return (
     <div data-tutorial="properties-panel" className={`pointer-events-auto absolute bottom-8 left-3 z-20 h-fit rounded-md border border-sidebar-border bg-sidebar/90 p-3 text-xs ${isPolycarbonate ? 'w-64' : 'w-56'}`}>
       <p className="mb-2 font-medium">Current selection</p>
+      <div className="mb-2 min-w-0 rounded border border-sidebar-border bg-background/50 px-2 py-1.5">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{part.onshapeName ? 'Onshape name' : 'Part'}</div>
+        <div className="break-words font-medium" title={name}>{name}</div>
+        <div className="text-[10px] tabular-nums text-muted-foreground">
+          {triangleCount == null
+            ? 'Counting triangles...'
+            : `${triangleCount.toLocaleString()} ${triangleCount === 1 ? 'triangle' : 'triangles'}`}
+        </div>
+      </div>
       <div className="grid gap-1.5">
         <div className="grid grid-cols-3 gap-1">
           <Field label="X" value={x} onCommit={(value) => onChange([value, y, z], part.rotation)} />

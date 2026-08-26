@@ -6,6 +6,7 @@ import { DoubleSide, MeshBasicMaterial, MOUSE, OrthographicCamera, PerspectiveCa
 import { AddSidebar } from '@/components/editor/AddSidebar'
 import { HotkeyDialog } from '@/components/editor/HotkeyDialog'
 import { OnshapeImportDialog } from '@/components/editor/OnshapeImportDialog'
+import { OnshapePartMappingDialog } from '@/components/editor/OnshapePartMappingDialog'
 import { PropertiesPanel } from '@/components/editor/PropertiesPanel'
 import { ColorSwatches, ToolsSidebar } from '@/components/editor/ToolsSidebar'
 import { PolycarbonateBadge } from '@/components/editor/PolycarbonateBadge'
@@ -26,6 +27,7 @@ import { stemName, type CameraState } from '@/persistence/document'
 import { isAbortError, openStepFile } from '@/persistence/fileIO'
 import { convertStepToMetadata } from '@/persistence/onshapeImport'
 import { stepMetadataToParts } from '@/persistence/onshapeParts'
+import type { OnshapePartMappings } from '@/persistence/onshapeParts'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -238,6 +240,10 @@ function App() {
     startedAt: 0,
     fileSize: 0,
   })
+  const [pendingOnshapeImport, setPendingOnshapeImport] = useState<{
+    metadata: Awaited<ReturnType<typeof convertStepToMetadata>>
+    fileName: string
+  } | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [partVisibility, setPartVisibility] = useState<Record<PartGroup, boolean>>(() =>
     Object.fromEntries(PART_GROUPS.map((group) => [group, true])) as Record<PartGroup, boolean>,
@@ -246,6 +252,7 @@ function App() {
   const [focusToken, setFocusToken] = useState(0)
   const [showDebug, setShowDebug] = useState(false)
   const [wireframe, setWireframe] = useState(false)
+  const [selectedPartTriangles, setSelectedPartTriangles] = useState<number | null>(null)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
   const drawCallLabel = useRef<HTMLDivElement>(null)
@@ -276,6 +283,10 @@ function App() {
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
+
+  useEffect(() => {
+    setSelectedPartTriangles(null)
+  }, [editor.primaryId])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -327,6 +338,11 @@ function App() {
       }, abort.signal)
       importAbort.current = null
       const imported = stepMetadataToParts(metadata)
+      if (imported.skipped.length > 0) {
+        setOnshapeImport((current) => ({ ...current, open: false, loading: false }))
+        setPendingOnshapeImport({ metadata, fileName: file.name })
+        return
+      }
       if (imported.parts.length === 0) {
         throw new Error('No supported Protobot catalog parts were found in this STEP assembly.')
       }
@@ -363,6 +379,17 @@ function App() {
     importAbort.current?.abort()
     importAbort.current = null
     setOnshapeImport((current) => ({ ...current, open: false, loading: false }))
+  }
+
+  function finishOnshapeImport(mappings: OnshapePartMappings) {
+    if (!pendingOnshapeImport) return
+    const imported = stepMetadataToParts(pendingOnshapeImport.metadata, mappings)
+    if (imported.parts.length === 0) {
+      setPendingOnshapeImport(null)
+      return
+    }
+    editor.importParts(imported.parts, pendingOnshapeImport.fileName)
+    setPendingOnshapeImport(null)
   }
 
   return (
@@ -602,6 +629,7 @@ function App() {
               <PropertiesPanel
                 part={editor.primary}
                 parts={editor.parts}
+                triangleCount={selectedPartTriangles}
                 onChange={(position, rotation) => {
                   if (editor.primaryId == null) return
                   editor.transformPart(editor.primaryId, position, rotation)
@@ -723,6 +751,8 @@ function App() {
                 onDrawCallChange={setDrawCallLabel}
                 onPartTrianglesChange={setPartTrianglesLabel}
                 onPerformanceChange={setPerformanceLabel}
+                selectedPartId={editor.primaryId}
+                onSelectedPartTrianglesChange={setSelectedPartTriangles}
               />
             </Canvas>
           </SidebarInset>
@@ -757,6 +787,12 @@ function App() {
             if (!open && onshapeImport.loading) cancelOnshapeImport()
             else setOnshapeImport((current) => ({ ...current, open }))
           }}
+        />
+        <OnshapePartMappingDialog
+          open={pendingOnshapeImport != null}
+          parts={pendingOnshapeImport ? stepMetadataToParts(pendingOnshapeImport.metadata).skipped : []}
+          onCancel={() => setPendingOnshapeImport(null)}
+          onImport={finishOnshapeImport}
         />
         <HotkeyDialog
           open={hotkeysOpen}
