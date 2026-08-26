@@ -1,5 +1,6 @@
 import { memo, useCallback, useState } from 'react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
   Popover,
@@ -42,9 +43,12 @@ import {
 
 type Props = {
   placing: boolean
+  replacing: boolean
   onStartPlacing: (part: PartDefinition, param1: string, param2: string) => void
   onUpdatePlacing: (param1: string, param2: string) => void
   onStopPlacing: () => void
+  onReplace: (part: PartDefinition, param1: string, param2: string) => void
+  onCancelReplace: () => void
 }
 
 const CHANNEL = PARTS.find((part) => part.id === 'CCHL') ?? PARTS[0]
@@ -75,9 +79,12 @@ function outsideTarget(event: { target: EventTarget | null; detail: { originalEv
 
 export function AddSidebar({
   placing,
+  replacing,
   onStartPlacing,
   onUpdatePlacing,
   onStopPlacing,
+  onReplace,
+  onCancelReplace,
 }: Props) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [param1, setParam1] = useState(defaultParamValue(CHANNEL.param1))
@@ -100,9 +107,10 @@ export function AddSidebar({
       setParam1(nextParam1)
       setParam2(nextParam2)
       setError(null)
+      if (replacing) return
       onStartPlacing(part, nextParam1, nextParam2)
     },
-    [onStartPlacing, onStopPlacing, placing, selectedKey],
+    [onStartPlacing, onStopPlacing, placing, replacing, selectedKey],
   )
 
   function changeParam1(value: string) {
@@ -112,26 +120,32 @@ export function AddSidebar({
       nextOptions.length > 0 && !nextOptions.includes(param2) ? nextOptions[0] : param2
     if (nextParam2 !== param2) setParam2(nextParam2)
     setError(paramError(selected.param1, value) ?? paramError(selected.param2, nextParam2))
-    onUpdatePlacing(value, nextParam2)
+    if (!replacing) onUpdatePlacing(value, nextParam2)
   }
 
   function changeParam2(value: string) {
     setParam2(value)
     setError(paramError(selected.param1, param1) ?? paramError(selected.param2, value))
-    onUpdatePlacing(param1, value)
+    if (!replacing) onUpdatePlacing(param1, value)
   }
 
   return (
     <Sidebar side="right" collapsible="icon" data-tutorial="parts-catalog">
       <SidebarHeader className="group-data-[collapsible=icon]:hidden">
+        {replacing ? (
+          <div className="flex items-center justify-between gap-2 text-sm font-medium">
+            <span>Choose replacement</span>
+            <Button variant="ghost" size="sm" onClick={onCancelReplace}>Cancel</Button>
+          </div>
+        ) : null}
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search..."
+          placeholder={replacing ? 'Search parts...' : 'Search...'}
           aria-label="Search parts"
         />
       </SidebarHeader>
-      <Popover open={placing}>
+      <Popover open={placing || (replacing && selectedKey != null)}>
         <SidebarContent>
           {PARTS_BY_GROUP.map(({ groupName, items }, groupIndex) => {
             const visible = items.filter((part) => matchesSearch(part, search))
@@ -148,7 +162,7 @@ export function AddSidebar({
                         key={key}
                         part={part}
                         isSelected={key === selectedKey}
-                        hideTooltip={placing && key === selectedKey}
+                        hideTooltip={(placing || replacing) && key === selectedKey}
                         onToggle={togglePart}
                       />
                     )
@@ -194,6 +208,18 @@ export function AddSidebar({
             />
           ) : null}
           {error ? <p className="text-destructive text-xs">{error}</p> : null}
+          {replacing ? (
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={onCancelReplace}>Cancel</Button>
+              <Button
+                size="sm"
+                disabled={error != null}
+                onClick={() => onReplace(selected, param1, param2)}
+              >
+                Replace
+              </Button>
+            </div>
+          ) : null}
         </PopoverContent>
       </Popover>
       <SidebarRail />

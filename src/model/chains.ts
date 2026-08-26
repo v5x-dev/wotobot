@@ -15,13 +15,15 @@ export type ChainGeometry = {
   kind: ChainKind
 }
 
-export type ChainKind = 'standard' | 'high-strength'
+export type ChainKind = 'standard' | '6p' | 'high-strength'
 
 export const STANDARD_CHAIN_PITCH = 0.148
+export const SIX_P_CHAIN_PITCH = 0.25
 export const HIGH_STRENGTH_CHAIN_PITCH = 0.385
 const MAX_AXIS_ANGLE = Math.PI / 90
 const MAX_PLANE_OFFSET = 0.0625
 const MIN_CENTER_GAP = 0.02
+const SIX_P_SPROCKET_TEETH = new Set(['8T', '16T', '32T'])
 
 const _axisA = new Vector3()
 const _axisB = new Vector3()
@@ -47,13 +49,15 @@ export function sprocketPitchRadius(part: PlacedPart) {
 }
 
 export function sprocketChainPitch(part: PlacedPart) {
-  return sprocketChainKind(part) === 'high-strength'
-    ? HIGH_STRENGTH_CHAIN_PITCH
-    : STANDARD_CHAIN_PITCH
+  const kind = sprocketChainKind(part)
+  if (kind === 'high-strength') return HIGH_STRENGTH_CHAIN_PITCH
+  if (kind === '6p') return SIX_P_CHAIN_PITCH
+  return STANDARD_CHAIN_PITCH
 }
 
 export function sprocketChainKind(part: PlacedPart): ChainKind {
-  return part.param1 === 'High Strength' ? 'high-strength' : 'standard'
+  if (part.param1 === 'High Strength') return 'high-strength'
+  return SIX_P_SPROCKET_TEETH.has(part.param2) ? '6p' : 'standard'
 }
 
 export function sprocketRotationPhase(part: PlacedPart) {
@@ -118,7 +122,8 @@ export function chainSelection(
   }
   const error = chainFitError(a, b)
   if (error) return { mode: null, reason: error } as const
-  const label = sprocketChainKind(a) === 'high-strength' ? 'high-strength' : 'standard'
+  const kind = sprocketChainKind(a)
+  const label = kind === 'high-strength' ? 'high-strength' : kind === '6p' ? '6P' : 'standard'
   return { mode: 'add', reason: `Add ${label} chain between the selected sprockets.` } as const
 }
 

@@ -43,6 +43,7 @@ export function PropertiesPanel({
   parts,
   onChange,
   onVariantChange,
+  onReplace,
   onShapeChange,
   triangleCount,
 }: {
@@ -50,6 +51,7 @@ export function PropertiesPanel({
   parts: PlacedPart[]
   onChange: (position: [number, number, number], rotation: [number, number, number]) => void
   onVariantChange: (param1: string, param2: string) => void
+  onReplace: () => void
   onShapeChange: (shape: PolycarbonateShape, width: string, height: string) => void
   triangleCount: number | null
 }) {
@@ -102,6 +104,9 @@ export function PropertiesPanel({
           />
         </div>
       </div>
+      <Button className="mt-3 w-full" size="sm" variant="outline" onClick={onReplace}>
+        Replace part
+      </Button>
       {isCylinder ? (
         <div className="mt-3 grid gap-1.5 border-t border-sidebar-border pt-3">
           <p className="font-medium">Cylinder position</p>

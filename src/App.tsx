@@ -1,8 +1,8 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import { GizmoHelper, GizmoViewport } from '@react-three/drei'
 import { CircleHelp, File, Maximize2, Minimize2, Pencil, Redo2, Undo2 } from 'lucide-react'
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { DoubleSide, MeshBasicMaterial, MOUSE, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Box3, DoubleSide, MeshBasicMaterial, MOUSE, OrthographicCamera, PerspectiveCamera, Sphere, Vector3, type Group } from 'three'
 import { AddSidebar } from '@/components/editor/AddSidebar'
 import { HotkeyDialog } from '@/components/editor/HotkeyDialog'
 import { OnshapeImportDialog } from '@/components/editor/OnshapeImportDialog'
@@ -113,12 +113,59 @@ function RenderToggle({
   )
 }
 
-function FocusCamera({ point, token }: { point: [number, number, number] | null; token: number }) {
-  const controls = useThree((state) => state.controls) as unknown as { target: Vector3 } | undefined
+function FocusCamera({
+  model,
+  token,
+  onChange,
+}: {
+  model: RefObject<Group | null>
+  token: number
+  onChange: (state: { target: [number, number, number]; position: [number, number, number] }) => void
+}) {
+  const camera = useThree((state) => state.camera)
+  const invalidate = useThree((state) => state.invalidate)
+  const controls = useThree((state) => state.controls) as unknown as {
+    target: Vector3
+    update: () => void
+  } | undefined
+  const onChangeRef = useRef(onChange)
   useEffect(() => {
-    if (!point || !controls || token === 0) return
-    controls.target.set(...point)
-  }, [controls, point, token])
+    onChangeRef.current = onChange
+  }, [onChange])
+  useEffect(() => {
+    if (!model.current || !controls || token === 0) return
+    const bounds = new Box3().setFromObject(model.current, true)
+    if (bounds.isEmpty()) return
+
+    const sphere = bounds.getBoundingSphere(new Sphere())
+    const radius = Math.max(sphere.radius, 0.25)
+    const direction = camera.position.clone().sub(controls.target)
+    if (direction.lengthSq() === 0) direction.set(1, 0.8, 1)
+    direction.normalize()
+
+    if (camera instanceof PerspectiveCamera) {
+      const verticalHalfFov = (camera.fov * Math.PI) / 360
+      const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * camera.aspect)
+      const distance = radius / Math.sin(Math.min(verticalHalfFov, horizontalHalfFov)) * 1.1
+      camera.position.copy(sphere.center).addScaledVector(direction, distance)
+    } else if (camera instanceof OrthographicCamera) {
+      const availableWidth = Math.abs(camera.right - camera.left)
+      const availableHeight = Math.abs(camera.top - camera.bottom)
+      // Three.js camera state is intentionally mutable.
+      // oxlint-disable-next-line react/immutability
+      camera.zoom = Math.min(availableWidth, availableHeight) / (radius * 2 * 1.1)
+      camera.position.copy(sphere.center).addScaledVector(direction, camera.position.distanceTo(controls.target))
+    }
+
+    controls.target.copy(sphere.center)
+    camera.updateProjectionMatrix()
+    controls.update()
+    invalidate()
+    onChangeRef.current({
+      target: sphere.center.toArray() as [number, number, number],
+      position: camera.position.toArray() as [number, number, number],
+    })
+  }, [camera, controls, invalidate, model, token])
   return null
 }
 
@@ -259,12 +306,14 @@ function App() {
   const [wireframe, setWireframe] = useState(false)
   const [viewportNavigation, setViewportNavigation] = useState<ViewportNavigationController | null>(null)
   const [selectedPartTriangles, setSelectedPartTriangles] = useState<number | null>(null)
+  const [replacementTargetId, setReplacementTargetId] = useState<number | null>(null)
   const fpsLabel = useRef<HTMLDivElement>(null)
   const triangleLabel = useRef<HTMLDivElement>(null)
   const drawCallLabel = useRef<HTMLDivElement>(null)
   const performanceLabel = useRef<HTMLDivElement>(null)
   const partTrianglesLabel = useRef<HTMLDivElement>(null)
   const importAbort = useRef<AbortController | null>(null)
+  const modelGroup = useRef<Group>(null)
   const setPartGroupVisible = useCallback((group: PartGroup, visible: boolean) => {
     setPartVisibility((current) => ({ ...current, [group]: visible }))
   }, [])
@@ -292,6 +341,7 @@ function App() {
 
   useEffect(() => {
     setSelectedPartTriangles(null)
+    setReplacementTargetId(null)
   }, [editor.primaryId])
 
   useEffect(() => {
@@ -299,13 +349,12 @@ function App() {
       if (!matchesHotkey(event, hotkeys.focus)) return
       const target = event.target
       if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return
-      if (!editor.primary) return
       event.preventDefault()
       setFocusToken((value) => value + 1)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [editor.primary, hotkeys.focus])
+  }, [hotkeys.focus])
 
   function toggleFullscreen() {
     if (document.fullscreenElement) {
@@ -636,6 +685,9 @@ function App() {
                   if (editor.primaryId == null) return
                   editor.updatePartVariant(editor.primaryId, param1, param2)
                 }}
+                onReplace={() => {
+                  if (editor.primaryId != null) setReplacementTargetId(editor.primaryId)
+                }}
                 onShapeChange={(shape, width, height) => {
                   if (editor.primaryId == null) return
                   editor.updatePartShape(editor.primaryId, shape, width, height)
@@ -687,31 +739,33 @@ function App() {
               <CameraProjection ortho={editor.ortho} />
               <WireframeView enabled={wireframe} />
               {editor.showGrid ? <InfiniteGrid /> : null}
-              <SprocketChains
-                parts={editor.parts}
-                chains={editor.chains}
-                selectedChainId={editor.selectedChainId}
-                interactive={editor.placingPart == null}
-                onSelect={editor.selectChain}
-              />
-              <SceneParts
-                parts={editor.parts}
-                chains={editor.chains}
-                selectedIds={editor.selectedIds}
-                primaryId={editor.primaryId}
-                connectedIds={editor.connectedIds}
-                interactive={!editor.placingPart}
-                showHoles={editor.showHoles}
-                detectHoles={editor.placingPart != null}
-                wireframe={wireframe}
-                showGizmos={editor.tool === 'transform'}
-                onSelect={editor.selectPart}
-                onTransform={editor.transformPart}
-                onTransformLive={editor.previewPartTransform}
-                onMoveStart={editor.onMoveStart}
-                onMoveEnd={editor.onMoveEnd}
-                visibility={partVisibility}
-              />
+              <group ref={modelGroup}>
+                <SprocketChains
+                  parts={editor.parts}
+                  chains={editor.chains}
+                  selectedChainId={editor.selectedChainId}
+                  interactive={editor.placingPart == null}
+                  onSelect={editor.selectChain}
+                />
+                <SceneParts
+                  parts={editor.parts}
+                  chains={editor.chains}
+                  selectedIds={editor.selectedIds}
+                  primaryId={editor.primaryId}
+                  connectedIds={editor.connectedIds}
+                  interactive={!editor.placingPart}
+                  showHoles={editor.showHoles}
+                  detectHoles={editor.placingPart != null}
+                  wireframe={wireframe}
+                  showGizmos={editor.tool === 'transform'}
+                  onSelect={editor.selectPart}
+                  onTransform={editor.transformPart}
+                  onTransformLive={editor.previewPartTransform}
+                  onMoveStart={editor.onMoveStart}
+                  onMoveEnd={editor.onMoveEnd}
+                  visibility={partVisibility}
+                />
+              </group>
               <Suspense>
                 <PlacementPreview
                   part={
@@ -753,7 +807,11 @@ function App() {
                 />
               </GizmoHelper>
               <ViewportNavigationBridge onReady={setViewportNavigation} />
-              <FocusCamera point={editor.primary?.position ?? null} token={focusToken} />
+              <FocusCamera
+                model={modelGroup}
+                token={focusToken}
+                onChange={(state) => editor.setCamera({ ...state, ortho: editor.ortho })}
+              />
               <BoxSelect
                 enabled={!editor.placingPart}
                 parts={editor.parts}
@@ -772,10 +830,18 @@ function App() {
             </Canvas>
           </SidebarInset>
           <AddSidebar
+            key={replacementTargetId == null ? 'parts-library' : `replace-${replacementTargetId}`}
             placing={editor.placingPart != null}
+            replacing={replacementTargetId != null}
             onStartPlacing={editor.startPlacing}
             onUpdatePlacing={editor.updatePlacing}
             onStopPlacing={editor.stopPlacing}
+            onReplace={(part, param1, param2) => {
+              if (replacementTargetId == null) return
+              editor.replacePart(replacementTargetId, part, param1, param2)
+              setReplacementTargetId(null)
+            }}
+            onCancelReplace={() => setReplacementTargetId(null)}
           />
         </SidebarProvider>
         <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>

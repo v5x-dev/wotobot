@@ -37,12 +37,13 @@ function noopRaycast() {}
 /** Reduced mesh of one VEX acetal master link. Dimensions are inches. */
 function makeLinkGeometry(kind: ChainKind) {
   const highStrength = kind === 'high-strength'
-  const pitch = highStrength ? 0.385 : 0.148
+  const sixP = kind === '6p'
+  const pitch = highStrength ? 0.385 : sixP ? 0.25 : 0.148
   const length = pitch * 1.08
-  const railHeight = highStrength ? 0.16 : 0.066
-  const width = highStrength ? 0.57 : 0.22
-  const holeRadius = highStrength ? 0.067 : 0.027
-  const railThickness = highStrength ? 0.075 : 0.03
+  const railHeight = highStrength ? 0.16 : sixP ? 0.105 : 0.066
+  const width = highStrength ? 0.57 : sixP ? 0.38 : 0.22
+  const holeRadius = highStrength ? 0.067 : sixP ? 0.045 : 0.027
+  const railThickness = highStrength ? 0.075 : sixP ? 0.05 : 0.03
   const endRadius = railHeight / 2
   const halfStraight = length / 2 - endRadius
 
@@ -59,7 +60,7 @@ function makeLinkGeometry(kind: ChainKind) {
     shape.holes.push(hole)
   }
 
-  const bevel = highStrength ? 0.012 : 0.005
+  const bevel = highStrength ? 0.012 : sixP ? 0.008 : 0.005
   const rail = new ExtrudeGeometry(shape, {
     depth: railThickness,
     bevelEnabled: true,
@@ -98,6 +99,7 @@ function makeLinkGeometry(kind: ChainKind) {
 }
 
 const standardLinkGeometry = makeLinkGeometry('standard')
+const sixPLinkGeometry = makeLinkGeometry('6p')
 const highStrengthLinkGeometry = makeLinkGeometry('high-strength')
 
 const _axis = new Vector3()
@@ -165,7 +167,7 @@ function ChainMesh({
   if (!chain) return null
   const linkGeometry = chain.kind === 'high-strength'
     ? highStrengthLinkGeometry
-    : standardLinkGeometry
+    : chain.kind === '6p' ? sixPLinkGeometry : standardLinkGeometry
 
   return (
     <instancedMesh

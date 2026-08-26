@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { makePart } from '@/test/fixtures'
 import {
   HIGH_STRENGTH_CHAIN_PITCH,
+  SIX_P_CHAIN_PITCH,
   STANDARD_CHAIN_PITCH,
   chainFitError,
   chainGeometry,
@@ -17,6 +18,7 @@ describe('sprocket chains', () => {
   it('accepts coplanar parallel sprockets and rejects incompatible fits', () => {
     const a = sprocket(1, 0)
     expect(chainFitError(a, sprocket(2, 2))).toBeNull()
+    expect(chainFitError(a, sprocket(2, 2, 'Normal', '8T'))).toMatch(/same chain type/)
     expect(chainFitError(a, sprocket(2, 2, 'High Strength'))).toMatch(/same chain type/)
     expect(chainFitError(a, makePart('SPKT', { instanceId: 2, position: [2, 0, 0], rotation: [0, Math.PI / 4, 0] }))).toMatch(/parallel/)
     expect(chainFitError(a, makePart('SPKT', { instanceId: 2, position: [2, 0, 0.1] }))).toMatch(/same plane/)
@@ -25,6 +27,7 @@ describe('sprocket chains', () => {
 
   it.each([
     ['Normal', '10T', '24T', STANDARD_CHAIN_PITCH, 'standard'],
+    ['Normal', '8T', '16T', SIX_P_CHAIN_PITCH, '6p'],
     ['High Strength', '18T', '30T', HIGH_STRENGTH_CHAIN_PITCH, 'high-strength'],
   ] as const)('builds closed tangent geometry for %s sprocket combinations', (type, teethA, teethB, pitch, kind) => {
     const a = sprocket(1, 0, type, teethA)

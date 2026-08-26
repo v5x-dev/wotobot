@@ -770,6 +770,34 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       : part))
   }, [pushHistory])
 
+  const replacePart = useCallback((id: number, definition: PartDefinition, param1: string, param2: string) => {
+    const current = partsRef.current.find((part) => part.instanceId === id)
+    if (!current) return
+    if (paramError(definition.param1, param1) || paramError(definition.param2, param2)) return
+
+    const replacement: PlacedPart = {
+      instanceId: current.instanceId,
+      key: partKey(definition),
+      param1,
+      param2,
+      position: [...current.position],
+      rotation: [...current.rotation],
+      color: current.color ? [...current.color] : null,
+      groupId: current.groupId,
+      shape: definition.generator === 'polycarbonate'
+        ? defaultPolycarbonateShape(Number(param1) || 4, Number(param2) || 8)
+        : undefined,
+    }
+
+    pushHistory()
+    setParts((parts) => parts.map((part) => part.instanceId === id ? replacement : part))
+    if (!isSprocket(replacement)) {
+      setChains((currentChains) => currentChains.filter(
+        (chain) => chain.sprocketAId !== id && chain.sprocketBId !== id,
+      ))
+    }
+  }, [pushHistory])
+
   const undo = useCallback(() => {
     const prev = undoStack.at(-1)
     if (!prev) return
@@ -984,6 +1012,7 @@ export function useRobotEditor(hotkeys: Hotkeys) {
     previewPartTransform,
     selectChain,
     updatePartVariant,
+    replacePart,
     updatePartShape,
     selectedChainAction,
     toggleSelectedChain,

@@ -116,10 +116,9 @@ export function ToolsSidebar({
         <Trash2 />
       </ToolButton>
       <ToolButton
-        label={`Focus selection (${formatHotkey(hotkeys.focus)})`}
+        label={`Frame model (${formatHotkey(hotkeys.focus)})`}
         variant="ghost"
         size="icon-sm"
-        disabled={!hasSelection}
         onClick={onFocus}
       >
         <Scan />
