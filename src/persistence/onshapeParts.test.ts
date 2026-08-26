@@ -45,9 +45,9 @@ describe('stepMetadataToParts', () => {
     expect(result.parts[4]).toMatchObject({ key: 'Motion:OMNI:Omni Wheel', param1: 'V2', param2: '2.75in' })
     expect(result.parts[5]).toMatchObject({ key: 'Electronics:SNSR:Sensor', param1: 'Rotation', param2: 'V5' })
     expect(result.parts[6]).toMatchObject({ key: 'Structure:ANGL:Angle', param1: '2x2', param2: '5' })
-    expect(result.parts[6].position[0]).toBeCloseTo(0.2246)
-    expect(result.parts[6].position[1]).toBeCloseTo(0.046)
-    expect(result.parts[6].position[2]).toBeCloseTo(0.372432)
+    expect(result.parts[6].position[0]).toBeCloseTo(0.179)
+    expect(result.parts[6].position[1]).toBeCloseTo(0.5)
+    expect(result.parts[6].position[2]).toBeCloseTo(0.375)
     const angleLengthAxis = new Vector3(1, 0, 0).applyEuler(new Euler(...result.parts[6].rotation))
     expect(angleLengthAxis.x).toBeCloseTo(0)
     expect(angleLengthAxis.y).toBeCloseTo(0)
@@ -462,6 +462,88 @@ describe('stepMetadataToParts', () => {
       key: 'Structure:SCRW:Screw',
       param1: '2.50in',
     })
+    expect(result.parts[0].rotation[0]).toBeCloseTo(Math.PI / 2)
+    expect(result.parts[0].rotation[1]).toBeCloseTo(0)
+    expect(result.parts[0].rotation[2]).toBeCloseTo(0)
+  })
+
+  it('maps other star drive screw lengths onto catalog sizes', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'screw-1', productId: '276-8014', name: '#8-32 x 1" Star Drive Screw', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+        { instanceId: 'screw-half', productId: '276-8012', name: '#8-32 x 1/2" Star Drive Screw', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts.map((part) => part.param1)).toEqual(['1.00in', '1/2in'])
+  })
+
+  it('rotates a lock nut so catalog -Z matches Onshape +Y', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'nut', productId: '276-1260', name: 'Nylock Nut (276-1260)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.parts[0]).toMatchObject({ key: 'Structure:NUT:Nut', param1: 'Lock' })
+    const thickness = new Vector3(0, 0, -1).applyEuler(new Euler(...result.parts[0].rotation))
+    expect(thickness.x).toBeCloseTo(0)
+    expect(thickness.y).toBeCloseTo(1)
+    expect(thickness.z).toBeCloseTo(0)
+  })
+
+  it('rotates a battery so catalog Y/Z match the Onshape pack', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'battery', productId: '276-4811', name: 'Robot Battery', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.parts[0]).toMatchObject({ key: 'Electronics:BTRY:Battery' })
+    const catalogY = new Vector3(0, 1, 0).applyEuler(new Euler(...result.parts[0].rotation))
+    expect(catalogY.x).toBeCloseTo(0)
+    expect(catalogY.y).toBeCloseTo(0)
+    expect(catalogY.z).toBeCloseTo(-1)
+  })
+
+  it('offsets only the 48T high-strength v2 gear face', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'gear-48', productId: '276-7746', name: '48T High Strength Gear V2 (276-7746)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+        { instanceId: 'gear-60', productId: '276-7748', name: '60T High Strength Gear V2 (276-7748)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.parts[0]).toMatchObject({ param1: 'High Strength v2', param2: '48T' })
+    expect(result.parts[1]).toMatchObject({ param1: 'High Strength v2', param2: '60T' })
+    expect(result.parts[0].position[2] - result.parts[1].position[2]).toBeCloseTo(0.125)
+  })
+
+  it('maps a C-channel coupler gusset and rotates it onto the Onshape plate', () => {
+    const result = stepMetadataToParts({
+      schema: null,
+      units: 'inch',
+      parts: [
+        { instanceId: 'gusset', productId: '276-1253', name: 'C-Channel Coupler Gusset (276-1253)', kind: 'part', path: [], position: [0, 0, 0], rotation: [0, 0, 0] },
+      ],
+    })
+
+    expect(result.skipped).toEqual([])
+    expect(result.parts[0]).toMatchObject({
+      key: 'Structure:GSET:Gussets',
+      param1: 'Coupler',
+      param2: 'Channel',
+    })
+    expect(result.parts[0].rotation[0]).toBeCloseTo(-Math.PI / 2)
   })
 
   it('recognizes the low profile bearing flat', () => {
@@ -478,6 +560,7 @@ describe('stepMetadataToParts', () => {
       key: 'Motion:BRNG:Flat Bearing',
       param1: 'Low Profile',
     })
+    expect(result.parts[0].rotation[0]).toBeCloseTo(-Math.PI / 2)
   })
 
   it('imports the three Onshape hinge components as one Wotobot hinge', () => {

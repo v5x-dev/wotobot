@@ -25,6 +25,17 @@ function catalogPart(id: string) {
   return part
 }
 
+function catalogScrewLength(raw: string) {
+  if (raw === '2-1/2' || raw === '2.5' || raw === '2.50') return '2.50in'
+  if (raw === '2-1/4' || raw === '2.25') return '2.25in'
+  if (raw === '2' || raw === '2.0' || raw === '2.00') return '2.00in'
+  if (raw === '1-3/4' || raw === '1.75') return '1.75in'
+  if (raw === '1-1/2' || raw === '1.5' || raw === '1.50') return '1.50in'
+  if (raw === '1-1/4' || raw === '1.25') return '1.25in'
+  if (raw === '1' || raw === '1.0' || raw === '1.00') return '1.00in'
+  return `${raw}in`
+}
+
 function sizeInches(name: string) {
   const match = name.match(/\b(\d+(?:\.\d+)?)\s*["”]|\b(\d+(?:\.\d+)?)\s*(?:in|inch)\b/i)
   if (!match) return undefined
@@ -70,9 +81,12 @@ function matchPart(source: StepPartMetadata): Match | null {
 
   if (/\bNylock Nut\b/i.test(name)) return { definition: catalogPart('NUT'), param1: 'Lock' }
 
-  if (/\b2-1\/2"\s+Star Drive Screw\b/i.test(name)) {
-    return { definition: catalogPart('SCRW'), param1: '2.50in' }
+  if (/\bC-Channel Coupler Gusset\b/i.test(name)) {
+    return { definition: catalogPart('GSET'), param1: 'Coupler', param2: 'Channel' }
   }
+
+  const screw = name.match(/#8-32\s*x\s*(\d+-\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)"\s+Star Drive Screw/i)
+  if (screw) return { definition: catalogPart('SCRW'), param1: catalogScrewLength(screw[1]) }
 
   const standoff = name.match(/\b(\d+(?:\.\d+)?|\d+\/\d+|\d+-\d+\/\d+)"\s+Long.*\bStandoff\b/i)
   if (standoff) {

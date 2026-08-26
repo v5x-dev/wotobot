@@ -2,6 +2,7 @@ import type { PartDefinition } from '@/model/parts'
 import { Euler, Matrix4, Quaternion, Vector3 } from 'three'
 
 const MILLIMETERS_TO_INCHES = 1 / 25.4
+const X_AXIS = new Vector3(1, 0, 0)
 
 const _sourceCenter = new Vector3()
 const _catalogCenter = new Vector3()
@@ -22,12 +23,15 @@ function quatFromRows(
   )).normalize()
 }
 
+function rx(turns: number) {
+  return new Quaternion().setFromAxisAngle(X_AXIS, turns * Math.PI)
+}
+
 /**
  * Maps catalog local axes onto the Onshape VEX library part CS.
  * Columns of the matrix are catalog X/Y/Z expressed in Onshape coordinates.
  */
 const CATALOG_TO_ONSHAPE = {
-  // Catalog length +X, web in XY; Onshape length -Z, web in XZ, open +Y.
   extrusion: quatFromRows(
     0, 1, 0,
     0, 0, -1,
@@ -38,22 +42,24 @@ const CATALOG_TO_ONSHAPE = {
     0, 0, -1,
     1, 0, 0,
   ),
-  uChannel: new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2),
-  reservoir: new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2),
-  rubberBumper: new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI),
-  // Catalog shaft +Z; Onshape HS shaft +X.
+  plusX: rx(0.5),
+  minusX: rx(-0.5),
+  uChannel: rx(-0.5),
+  reservoir: rx(0.5),
+  rubberBumper: rx(1),
   shaft: quatFromRows(
     0, 0, 1,
     1, 0, 0,
     0, 1, 0,
   ),
-  // Catalog standoff +Z (scaled 1" mesh); Onshape hex +Y with origin 0.25" from the -Y end.
-  standoff: new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2),
+  standoff: rx(-0.5),
 }
 
 const U_CHANNEL_ONSHAPE_CENTER = new Vector3(-3.5, -0.4455, 0)
 const U_CHANNEL_CATALOG_CENTER = new Vector3(0, -0.008, -0.477)
 const SHAFT_COLLAR_ONSHAPE_CENTER = new Vector3(4.2806, 5.6968, 7.9749).multiplyScalar(MILLIMETERS_TO_INCHES)
+const RUBBER_BUMPER_ONSHAPE_CENTER = new Vector3(-0.143, 0, 0)
+const HINGE_ONSHAPE_CENTER = new Vector3(-0.25, 0, -0.044)
 
 function inchesFromParam(value: string) {
   const normalized = value.trim().replace(/in$/i, '')
@@ -65,6 +71,10 @@ function inchesFromParam(value: string) {
   return Number.isFinite(inches) ? inches : undefined
 }
 
+function isCouplerChannel(param1: string, param2: string) {
+  return param1 === 'Coupler' && param2 === 'Channel'
+}
+
 function catalogOriginInOnshape(
   definition: PartDefinition,
   param1: string,
@@ -73,18 +83,14 @@ function catalogOriginInOnshape(
 ) {
   if (definition.id === 'CCHL') {
     const holes = Number(param2)
-    // B-rep of 1x2/1x3 C-channels: length along -Z from the origin end, first
-    // hole at z=-0.25, flange-hole center at y≈0.30. Catalog origin is length-
-    // centered with the web near z=0, so y=0.052 places those flange holes.
     return Number.isFinite(holes) ? target.set(0, 0.052, -holes * 0.25) : target.set(0, 0, 0)
   }
   if (definition.id === 'ANGL') {
     const holes = Number(param2)
     if (!Number.isFinite(holes)) return target.set(0, 0, 0)
     const along = -(holes - 1) * 0.25
-    if (param1 === '2x2') return target.set(0.2496, 0.046, along - 0.002568)
+    if (param1 === '2x2') return target.set(0.204, 0.5, along)
     if (param1 === '3x3') return target.set(-0.002, 0.044, along)
-    // 1x1 B-rep: legs in +X/+Y with the corner near the origin, length -Z.
     return target.set(-0.046, 0.25, along)
   }
   if (definition.id === 'SHFT') {
@@ -100,14 +106,15 @@ function catalogOriginInOnshape(
     const length = inchesFromParam(param1) ?? 1
     return target.set(0, length / 2 - 0.25, 0)
   }
-  if (definition.id === 'GEAR' && param1 === 'High Strength v2') {
-    // Onshape HS v2 gears sit on the z=0 face and are 0.25" thick.
+  if (definition.id === 'GEAR' && param1 === 'High Strength v2' && param2 === '48T') {
     return target.set(0, 0, 0.125)
   }
+  if (definition.id === 'RBMP') return target.copy(RUBBER_BUMPER_ONSHAPE_CENTER)
+  if (definition.id === 'HING') return target.copy(HINGE_ONSHAPE_CENTER)
   return target.set(0, 0, 0)
 }
 
-function catalogToOnshape(definition: PartDefinition, param1: string) {
+function catalogToOnshape(definition: PartDefinition, param1: string, param2: string) {
   if (definition.id === 'CCHL') return CATALOG_TO_ONSHAPE.extrusion
   if (definition.id === 'ANGL') return CATALOG_TO_ONSHAPE.angle
   if (definition.id === 'UCHL') return CATALOG_TO_ONSHAPE.uChannel
@@ -117,6 +124,11 @@ function catalogToOnshape(definition: PartDefinition, param1: string) {
     return CATALOG_TO_ONSHAPE.shaft
   }
   if (definition.id === 'SNDF') return CATALOG_TO_ONSHAPE.standoff
+  if (definition.id === 'SCRW') return CATALOG_TO_ONSHAPE.plusX
+  if (definition.id === 'NUT' && param1 === 'Lock') return CATALOG_TO_ONSHAPE.plusX
+  if (definition.id === 'BTRY') return CATALOG_TO_ONSHAPE.minusX
+  if (definition.id === 'BRNG' && param1 === 'Low Profile') return CATALOG_TO_ONSHAPE.minusX
+  if (definition.id === 'GSET' && isCouplerChannel(param1, param2)) return CATALOG_TO_ONSHAPE.minusX
   return null
 }
 
@@ -137,7 +149,7 @@ export function alignCatalogPart(
   param1: string,
   param2: string,
 ) {
-  const extra = catalogToOnshape(definition, param1)
+  const extra = catalogToOnshape(definition, param1, param2)
   _catalogRotation.copy(sourceRotation)
   if (extra) _catalogRotation.multiply(extra)
 
@@ -146,7 +158,7 @@ export function alignCatalogPart(
   _position.set(...position).add(_sourceCenter).sub(_catalogCenter)
 
   return {
-    position: _position.toArray() as [number, number, number],
+    position: [_position.x, _position.y, _position.z] as [number, number, number],
     rotation: editorRotation(_catalogRotation),
   }
 }
