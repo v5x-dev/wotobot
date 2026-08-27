@@ -1,6 +1,6 @@
-import { TransformControls } from '@react-three/drei'
+import { Line as AxisLine, TransformControls } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import {
   AlwaysStencilFunc,
   BackSide,
@@ -424,6 +424,11 @@ type Props = {
 }
 
 type GrabAxis = 'x' | 'y' | 'z'
+type GrabIndicator = {
+  mode: 'translate' | 'rotate'
+  axis: GrabAxis
+  origin: [number, number, number]
+}
 
 const GRAB_AXES: Record<GrabAxis, Vector3> = {
   x: new Vector3(1, 0, 0),
@@ -468,6 +473,7 @@ export function SelectablePart({
   const camera = useThree((state) => state.camera)
   const gl = useThree((state) => state.gl)
   const keyboardGrabCallbacks = useRef({ onTransform, onTransformLive, onMoveStart, onMoveEnd })
+  const [grabIndicator, setGrabIndicator] = useState<GrabIndicator | null>(null)
 
   useLayoutEffect(() => {
     keyboardGrabCallbacks.current = { onTransform, onTransformLive, onMoveStart, onMoveEnd }
@@ -503,6 +509,7 @@ export function SelectablePart({
         }
       }
       grab = null
+      setGrabIndicator(null)
       movingRef.current = false
       dragSourceRef.current = null
       gl.domElement.style.cursor = previousCursor
@@ -539,6 +546,11 @@ export function SelectablePart({
         event.stopImmediatePropagation()
         grab.axis = key
         grab.pointer.copy(latestPointer)
+        setGrabIndicator({
+          mode: grab.mode,
+          axis: key,
+          origin: [grab.startPosition.x, grab.startPosition.y, grab.startPosition.z],
+        })
         return
       }
       if (event.key === 'Enter') {
@@ -814,6 +826,20 @@ export function SelectablePart({
             onTransformLive(next.position, next.rotation)
           }}
         />
+      )}
+      {grabIndicator && (
+        <>
+          <AxisLine
+            points={[
+              GRAB_AXES[grabIndicator.axis].clone().multiplyScalar(-1000).add(new Vector3(...grabIndicator.origin)),
+              GRAB_AXES[grabIndicator.axis].clone().multiplyScalar(1000).add(new Vector3(...grabIndicator.origin)),
+            ]}
+            color={AXIS_COLOR_BY_NAME[grabIndicator.axis.toUpperCase()]}
+            lineWidth={2}
+            depthTest={false}
+            renderOrder={2000}
+          />
+        </>
       )}
     </>
   )
