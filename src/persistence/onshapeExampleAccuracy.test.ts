@@ -15,6 +15,15 @@ function axisDistance(origin: Vector3, direction: Vector3, point: Vector3) {
 }
 
 describe.skipIf(!EXAMPLE_FILES.every((file) => existsSync(file)))('Onshape example assemblies', () => {
+  it('imports the WIP brain with the catalog-aligned rotation', () => {
+    const source = readFileSync(`${EXAMPLE_DIR}/WIP.step`, 'utf8')
+    const imported = stepMetadataToParts(parseStepMetadata(source))
+    const brain = imported.parts.find((part) => part.key.includes(':BRAN:'))
+
+    expect(brain).toBeDefined()
+    expect(brain!.rotation.map((angle) => angle * 180 / Math.PI)).toEqual([0, -90, -48])
+  })
+
   it('keeps pillow-block bores on high-strength shaft axes', () => {
     const source = readFileSync(`${EXAMPLE_DIR}/WIP.step`, 'utf8')
     const imported = stepMetadataToParts(parseStepMetadata(source))

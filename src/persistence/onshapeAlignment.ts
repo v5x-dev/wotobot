@@ -45,6 +45,7 @@ const CATALOG_TO_ONSHAPE = {
   plusX: rx(0.5),
   minusX: rx(-0.5),
   uChannel: rx(-0.5),
+  brain: rx(0.5),
   reservoir: rx(0.5),
   rubberBumper: rx(1),
   shaft: quatFromRows(
@@ -118,6 +119,7 @@ function catalogToOnshape(definition: PartDefinition, param1: string, param2: st
   if (definition.id === 'CCHL') return CATALOG_TO_ONSHAPE.extrusion
   if (definition.id === 'ANGL') return CATALOG_TO_ONSHAPE.angle
   if (definition.id === 'UCHL') return CATALOG_TO_ONSHAPE.uChannel
+  if (definition.id === 'BRAN') return CATALOG_TO_ONSHAPE.brain
   if (definition.id === 'TANK') return CATALOG_TO_ONSHAPE.reservoir
   if (definition.id === 'RBMP') return CATALOG_TO_ONSHAPE.rubberBumper
   if (definition.id === 'CLMP' || (definition.id === 'SHFT' && param1 === 'High Strength')) {
@@ -142,6 +144,14 @@ export function editorRotation(rotation: Quaternion): [number, number, number] {
   return [_euler.x, _euler.y, _euler.z]
 }
 
+function brainEditorRotation(rotation: Quaternion): [number, number, number] {
+  const [x, y, z] = editorRotation(rotation)
+  if (Math.abs(y + Math.PI / 2) > 1e-6) return [x, y, z]
+
+  const degrees = Math.round((z - x) * 180 / Math.PI)
+  return [0, -Math.PI / 2, degrees * Math.PI / 180]
+}
+
 export function alignCatalogPart(
   position: [number, number, number],
   sourceRotation: Quaternion,
@@ -159,7 +169,9 @@ export function alignCatalogPart(
 
   return {
     position: [_position.x, _position.y, _position.z] as [number, number, number],
-    rotation: editorRotation(_catalogRotation),
+    rotation: definition.id === 'BRAN'
+      ? brainEditorRotation(_catalogRotation)
+      : editorRotation(_catalogRotation),
   }
 }
 

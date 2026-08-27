@@ -18,7 +18,7 @@ import {
   type Material,
   type Object3D,
 } from 'three'
-import { mergeGroups, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
 import { consumeGizmoPointer } from './gizmoPointer'
 import { partTriangleName, type PartTriangleTotals } from './partTriangles'
@@ -192,7 +192,7 @@ function prepareFbxClone(
     const mesh = obj as Mesh
     if (!mesh.isMesh) return
 
-    if (preserveSourceColors) mesh.geometry = toCreasedNormals(mesh.geometry, Math.PI / 3)
+    if (preserveSourceColors) mesh.geometry = mesh.geometry.clone()
     compactMeshGroups(mesh)
     mesh.material =
       finish === 'model' || finish === 'model-preview'
