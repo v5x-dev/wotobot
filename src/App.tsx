@@ -1,5 +1,4 @@
 import { Canvas, useThree } from '@react-three/fiber'
-import { GizmoHelper, GizmoViewport } from '@react-three/drei'
 import { CircleHelp, File, Maximize2, Minimize2, Pencil, Redo2, Undo2 } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Box3, DoubleSide, MeshBasicMaterial, MOUSE, OrthographicCamera, PerspectiveCamera, Sphere, Vector3, type Group } from 'three'
@@ -17,6 +16,7 @@ import { BoxSelect } from '@/components/scene/BoxSelect'
 import { FpsCounter } from '@/components/scene/FpsCounter'
 import { InfiniteGrid } from '@/components/scene/InfiniteGrid'
 import { OrbitControls } from '@/components/scene/OrbitControls'
+import { OrbitGizmo } from '@/components/scene/OrbitGizmo'
 import { PlacementPreview } from '@/components/scene/PlacementPreview'
 import { SceneParts } from '@/components/scene/SceneParts'
 import { SprocketChains } from '@/components/scene/SprocketChains'
@@ -26,7 +26,6 @@ import {
   type ViewportNavigationController,
 } from '@/components/scene/ViewportNavigation'
 import { useRobotEditor } from '@/editor/useRobotEditor'
-import { AXIS_COLORS } from '@/model/colors'
 import { PART_GROUPS, type PartGroup } from '@/model/parts'
 import { stemName, type CameraState } from '@/persistence/document'
 import { isAbortError, openStepFile } from '@/persistence/fileIO'
@@ -799,13 +798,7 @@ function App() {
                   ortho: editor.ortho,
                 })}
               />
-              <GizmoHelper alignment="top-right" margin={[76, 76]}>
-                <GizmoViewport
-                  axisColors={AXIS_COLORS}
-                  labels={['', '', '']}
-                  axisHeadScale={0.9}
-                />
-              </GizmoHelper>
+              <OrbitGizmo />
               <ViewportNavigationBridge onReady={setViewportNavigation} />
               <FocusCamera
                 model={modelGroup}

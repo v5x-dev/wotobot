@@ -136,9 +136,9 @@ export function ViewportNavigation({
     controller.end()
   }
 
-  const dragButtonClass = 'cursor-move touch-none text-white hover:bg-white/15 hover:text-white'
+  const dragButtonClass = 'cursor-move touch-none'
   return (
-    <div className="pointer-events-auto absolute top-32 right-3 z-20 flex flex-col gap-0.5 rounded-md bg-black/25 p-0.5 text-white shadow-sm backdrop-blur-sm">
+    <div className="pointer-events-auto absolute top-[92px] right-3 z-20 flex h-fit w-fit flex-col gap-1 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-sm">
       <NavigationButton
         label="Zoom view (drag)"
         variant="ghost"
@@ -169,18 +169,16 @@ export function ViewportNavigation({
         label={ortho ? 'Switch to perspective view' : 'Switch to orthographic view'}
         variant={ortho ? 'secondary' : 'ghost'}
         size="icon-sm"
-        className="text-white hover:bg-white/15 hover:text-white"
         aria-pressed={ortho}
         onClick={onToggleProjection}
       >
         <Grid3X3 />
       </NavigationButton>
-      <div className="mx-1 my-0.5 h-px bg-white/15" />
+      <div className="mx-1 my-0.5 h-px bg-sidebar-border" />
       <NavigationButton
         label={`${showHoles ? 'Hide' : 'Show'} all holes (${holesHotkey})`}
         variant={showHoles ? 'secondary' : 'ghost'}
         size="icon-sm"
-        className="text-white hover:bg-white/15 hover:text-white"
         aria-pressed={showHoles}
         onClick={onToggleHoles}
       >
@@ -190,7 +188,6 @@ export function ViewportNavigation({
         label={`${showDebug ? 'Hide' : 'Show'} debug overlay`}
         variant={showDebug ? 'secondary' : 'ghost'}
         size="icon-sm"
-        className="text-white hover:bg-white/15 hover:text-white"
         aria-pressed={showDebug}
         onClick={onToggleDebug}
       >
@@ -201,7 +198,6 @@ export function ViewportNavigation({
           label={`${wireframe ? 'Disable' : 'Enable'} wireframe view`}
           variant={wireframe ? 'secondary' : 'ghost'}
           size="icon-sm"
-          className="text-white hover:bg-white/15 hover:text-white"
           aria-pressed={wireframe}
           onClick={onToggleWireframe}
         >
