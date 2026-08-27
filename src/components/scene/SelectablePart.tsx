@@ -26,6 +26,7 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { computeBoundsTree } from 'three-mesh-bvh'
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib'
 import { consumeGizmoPointer, setGizmoPointerTarget } from './gizmoPointer'
+import { createOutlineMesh } from './outlineMesh'
 import { AXIS_COLORS } from '@/model/colors'
 import { GRID_SNAP, ROTATION_SNAP, snap } from '@/model/grid'
 
@@ -538,7 +539,7 @@ export function SelectablePart({
       const ownedGeometry = object.userData.weldOutline
         ? weldedOutlineGeometry(object.geometry)
         : undefined
-      const outline = new Mesh(ownedGeometry ?? object.geometry, outlineMaterial)
+      const outline = createOutlineMesh(object, ownedGeometry ?? object.geometry, outlineMaterial)
       outline.userData.isOutline = true
       outline.renderOrder = 1000
       outline.frustumCulled = false
@@ -552,6 +553,8 @@ export function SelectablePart({
       outlineMaterial.dispose()
       for (const { source, outline, ownedGeometry } of outlineMeshes) {
         source.remove(outline)
+        const disposableOutline = outline as Mesh & { dispose?: () => void }
+        disposableOutline.dispose?.()
         ownedGeometry?.dispose()
       }
       for (const { mesh, material } of restored) {

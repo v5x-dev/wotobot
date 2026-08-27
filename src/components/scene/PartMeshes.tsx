@@ -22,6 +22,7 @@ import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
 import { consumeGizmoPointer } from './gizmoPointer'
 import { partTriangleName, type PartTriangleTotals } from './partTriangles'
+import { plateInstancePositions } from './plateInstances'
 import { holesForPart, SCREW_HOLE_DIAMETER } from '@/model/holes'
 import {
   collectChannelPieces,
@@ -365,31 +366,36 @@ function PlatePart({
   material: MeshStandardMaterial
 }) {
   const fbx = useFBX(url)
+  const meshRef = useRef<InstancedMesh>(null)
   const geometry = useMemo(() => {
     const mesh = (findNamedObject(fbx, meshName) as Mesh | null) ?? firstMesh(fbx)
     return mesh?.geometry ?? null
   }, [fbx, meshName])
+  const positions = useMemo(() => plateInstancePositions(length, width), [length, width])
 
-  const getPos = (val: number, max: number) => 0.5 * ((-max + 1) / 2 + val)
+  useLayoutEffect(() => {
+    const mesh = meshRef.current
+    if (!mesh) return
+    const matrix = new Matrix4()
+    for (let index = 0; index < positions.length; index += 1) {
+      matrix.makeTranslation(...positions[index])
+      mesh.setMatrixAt(index, matrix)
+    }
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.computeBoundingBox()
+    mesh.computeBoundingSphere()
+  }, [positions])
 
   if (!geometry) {
     return <MissingPart />
   }
 
   return (
-    <group>
-      {Array.from({ length }, (_, x) =>
-        Array.from({ length: width }, (_, y) => (
-          <mesh
-            key={`${x}-${y}`}
-            geometry={geometry}
-            material={material}
-            position={[getPos(x, length), getPos(y, width), 0]}
-            {...(material === preview ? { raycast: noopRaycast } : {})}
-          />
-        )),
-      )}
-    </group>
+    <instancedMesh
+      ref={meshRef}
+      args={[geometry, material, positions.length]}
+      {...(material === preview ? { raycast: noopRaycast } : {})}
+    />
   )
 }
 
