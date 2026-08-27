@@ -38,8 +38,8 @@ const CATALOG_TO_ONSHAPE = {
     -1, 0, 0,
   ),
   angle: quatFromRows(
-    0, -1, 0,
     0, 0, -1,
+    0, 1, 0,
     1, 0, 0,
   ),
   plusX: rx(0.5),
