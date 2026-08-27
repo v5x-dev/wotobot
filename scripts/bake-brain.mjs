@@ -94,7 +94,6 @@ function dilate(rgb, mask, w, h, radius) {
 const low = firstMesh(loadFbx('public/protobot-models/Electronics/Brain.fbx'))
 const high = firstMesh(loadFbx('/tmp/Brain-original.fbx'))
 const lpos = low.geometry.getAttribute('position')
-const lnrm = low.geometry.getAttribute('normal')
 const luv = low.geometry.getAttribute('uv')
 const hpos = high.geometry.getAttribute('position')
 const hnrm = high.geometry.getAttribute('normal')

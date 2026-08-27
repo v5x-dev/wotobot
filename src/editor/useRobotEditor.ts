@@ -462,12 +462,12 @@ export function useRobotEditor(hotkeys: Hotkeys) {
       const transformStart = activeTransformRef.current
       const sourceParts = transformStart?.parts ?? partsRef.current
       const current = sourceParts.find((part) => part.instanceId === id)
-      if (
-        !current ||
-        (sameVec3(current.position, position) && sameVec3(current.rotation, rotation))
-      ) {
-        return
-      }
+      if (!current) return
+      const matchesTransformStart =
+        sameVec3(current.position, position) && sameVec3(current.rotation, rotation)
+      // A live transform that returns to its starting point must still replace
+      // the last preview in state. Escape relies on this to restore the model.
+      if (matchesTransformStart && (recordHistory || !transformStart)) return
       if (recordHistory) {
         if (transformStart) {
           setUndoStack((stack) => [...stack, transformStart].slice(-MAX_HISTORY))

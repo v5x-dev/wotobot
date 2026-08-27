@@ -339,6 +339,7 @@ function App() {
   }, [])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- selection-specific counters must clear together
     setSelectedPartTriangles(null)
     setReplacementTargetId(null)
   }, [editor.primaryId])

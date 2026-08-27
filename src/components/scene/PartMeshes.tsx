@@ -1,4 +1,5 @@
 import { Edges, useFBX } from '@react-three/drei'
+/* oxlint-disable react/only-export-components -- scene helpers share the model cache in this module */
 import type { ThreeEvent } from '@react-three/fiber'
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import {
@@ -941,7 +942,7 @@ function InstancedCatalogParts({
       })
     })
     return result
-  }, [fbx, group.meshName, group.metalness, group.modelRotation, group.parts, group.scale])
+  }, [fbx, group.meshName, group.metalness, group.modelRotation, group.parts, group.preserveSourceColors, group.scale])
   const refs = useRef<Array<InstancedMesh | null>>([])
 
   useLayoutEffect(() => {

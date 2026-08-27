@@ -9,7 +9,8 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    allowedHosts: ['spectacular-universities-walks-anytime.trycloudflare.com'],
+    // Cloudflare quick tunnels get a new random subdomain on every run.
+    allowedHosts: ['.trycloudflare.com'],
   },
   resolve: {
     alias: {

@@ -40,7 +40,7 @@ export const HOTKEY_DEFINITIONS: HotkeyDefinition[] = [
   { action: 'boxSelect', label: 'Box select', group: 'Tools', defaultBinding: 'B' },
   { action: 'focus', label: 'Frame model', group: 'View', defaultBinding: 'F' },
   { action: 'toggleHoles', label: 'Show holes', group: 'View', defaultBinding: 'H' },
-  { action: 'toggleGrid', label: 'Show grid', group: 'View', defaultBinding: 'G' },
+  { action: 'toggleGrid', label: 'Show grid', group: 'View', defaultBinding: 'Shift+G' },
   { action: 'toggleProjection', label: 'Toggle projection', group: 'View', defaultBinding: 'O' },
 ]
 

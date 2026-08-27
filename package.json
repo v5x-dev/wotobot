@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "tunnel": "cloudflared tunnel --url http://localhost:5173",
     "build": "tsc -b && vite build",
     "check": "npm run lint && npm run test && npm run build",
     "lint": "oxlint --deny-warnings",

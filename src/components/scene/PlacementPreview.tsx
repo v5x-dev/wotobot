@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useRef } from 'react'
 import { BufferGeometry, DoubleSide, Group, Plane, Quaternion, Vector3, type Intersection, type Object3D } from 'three'
 import { snapVec3 } from '@/model/grid'
 import { eulerToQuat, quatToEuler } from '@/model/math'
@@ -106,13 +106,15 @@ export function PlacementPreview({
   const raycaster = useThree((state) => state.raycaster)
   const invalidate = useThree((state) => state.invalidate)
 
-  partRef.current = part
-  partsRef.current = parts
-  flipRef.current = flip
-  rotatingRef.current = rotating
-  onPlaceRef.current = onPlace
-  onRotationRef.current = onRotation
-  if (part) rotationRef.current = part.rotation
+  useLayoutEffect(() => {
+    partRef.current = part
+    partsRef.current = parts
+    flipRef.current = flip
+    rotatingRef.current = rotating
+    onPlaceRef.current = onPlace
+    onRotationRef.current = onRotation
+    if (part) rotationRef.current = part.rotation
+  }, [flip, onPlace, onRotation, part, parts, rotating])
 
   useFrame(({ camera: frameCamera, pointer }) => {
     const current = partRef.current
