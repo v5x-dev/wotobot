@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { BoxGeometry, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial } from 'three'
+import { BoxGeometry, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Vector2, Vector3 } from 'three'
 import { createOutlineMesh } from './outlineMesh'
+import { projectedAxisDistance } from './projectedAxisDistance'
 
 describe('selection outlines', () => {
   it('keeps every instance when outlining an instanced part', () => {
@@ -33,5 +34,29 @@ describe('selection outlines', () => {
 
     geometry.dispose()
     material.dispose()
+  })
+})
+
+describe('keyboard axis movement', () => {
+  it('maps horizontal pointer travel back onto the world X axis', () => {
+    const camera = new PerspectiveCamera(50, 2, 0.1, 100)
+    camera.position.set(0, 0, 10)
+    camera.lookAt(0, 0, 0)
+    camera.updateMatrixWorld()
+    camera.updateProjectionMatrix()
+
+    const origin = new Vector3(0, 0, 0)
+    const viewport = { width: 1000, height: 500 }
+    const projectedOrigin = origin.clone().project(camera)
+    const projectedUnitX = new Vector3(1, 0, 0).project(camera)
+    const oneUnitInPixels = (projectedUnitX.x - projectedOrigin.x) * viewport.width / 2
+
+    expect(projectedAxisDistance(
+      camera,
+      origin,
+      new Vector3(1, 0, 0),
+      new Vector2(oneUnitInPixels * 2, 0),
+      viewport,
+    )).toBeCloseTo(2)
   })
 })

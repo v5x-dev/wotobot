@@ -71,7 +71,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: '5 — Transform & move selection',
     target: '[data-tutorial="tools-sidebar"]',
     description:
-      'Tool 1 (Transform) shows drei TransformControls gizmos — drag axes to move/rotate. Shift+D picks up the selection and re-enters placement so you can re-snap it to a different hole.',
+      'Tool 1 (Transform) shows drei TransformControls gizmos. Press G then X, Y, or Z to move on a world axis. Press R then an axis to rotate. Click or press Enter to confirm; Escape or right-click cancels. Shift+D picks up the selection and re-enters placement so you can re-snap it to a different hole.',
     detail:
       'Protobot Rebuilt has dedicated PositionAxis / PositionPlane / RotateRing gizmos. The Properties panel (bottom-left) mirrors X/Y/Z and RX/RY/RZ numerically — edits commit on blur/Enter.',
     hint: 'Try: select a part → press 1 and drag the gizmo → press Shift+D to re-snap it.',

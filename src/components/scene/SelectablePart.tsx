@@ -1,6 +1,6 @@
 import { TransformControls } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import {
   AlwaysStencilFunc,
   BackSide,
@@ -13,6 +13,7 @@ import {
   Mesh,
   NotEqualStencilFunc,
   Plane,
+  Quaternion,
   Raycaster,
   ReplaceStencilOp,
   ShaderMaterial,
@@ -27,6 +28,7 @@ import { computeBoundsTree } from 'three-mesh-bvh'
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib'
 import { consumeGizmoPointer, setGizmoPointerTarget } from './gizmoPointer'
 import { createOutlineMesh } from './outlineMesh'
+import { projectedAxisDistance } from './projectedAxisDistance'
 import { AXIS_COLORS } from '@/model/colors'
 import { GRID_SNAP, ROTATION_SNAP, snap } from '@/model/grid'
 
@@ -421,6 +423,14 @@ type Props = {
   children: ReactNode
 }
 
+type GrabAxis = 'x' | 'y' | 'z'
+
+const GRAB_AXES: Record<GrabAxis, Vector3> = {
+  x: new Vector3(1, 0, 0),
+  y: new Vector3(0, 1, 0),
+  z: new Vector3(0, 0, 1),
+}
+
 function readTransform(group: Group): {
   position: [number, number, number]
   rotation: [number, number, number]
@@ -455,6 +465,145 @@ export function SelectablePart({
   const grabOffset = useRef(new Vector3())
   const pointerDown = useRef({ x: 0, y: 0 })
   const orbitControls = useThree((state) => state.controls)
+  const camera = useThree((state) => state.camera)
+  const gl = useThree((state) => state.gl)
+  const keyboardGrabCallbacks = useRef({ onTransform, onTransformLive, onMoveStart, onMoveEnd })
+
+  useLayoutEffect(() => {
+    keyboardGrabCallbacks.current = { onTransform, onTransformLive, onMoveStart, onMoveEnd }
+  }, [onMoveEnd, onMoveStart, onTransform, onTransformLive])
+
+  useEffect(() => {
+    if (!showGizmo || !interactive) return
+
+    let grab: null | {
+      mode: 'translate' | 'rotate'
+      axis: GrabAxis | null
+      startPosition: Vector3
+      startRotation: [number, number, number]
+      pointer: Vector2
+    } = null
+    const latestPointer = new Vector2(gl.domElement.clientWidth / 2, gl.domElement.clientHeight / 2)
+    const previousCursor = gl.domElement.style.cursor
+
+    function finish(commit: boolean) {
+      if (!grab) return
+      const group = groupRef.current
+      if (group) {
+        if (commit) {
+          const next = readTransform(group)
+          keyboardGrabCallbacks.current.onTransform(next.position, next.rotation)
+        } else {
+          group.position.copy(grab.startPosition)
+          group.rotation.set(...grab.startRotation)
+          keyboardGrabCallbacks.current.onTransformLive(
+            [grab.startPosition.x, grab.startPosition.y, grab.startPosition.z],
+            grab.startRotation,
+          )
+        }
+      }
+      grab = null
+      movingRef.current = false
+      dragSourceRef.current = null
+      gl.domElement.style.cursor = previousCursor
+      setOrbitEnabled(orbitControls, true)
+      keyboardGrabCallbacks.current.onMoveEnd?.()
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return
+      const key = event.key.toLowerCase()
+      if (!grab) {
+        if ((key !== 'g' && key !== 'r') || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+        const group = groupRef.current
+        if (!group) return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        grab = {
+          mode: key === 'g' ? 'translate' : 'rotate',
+          axis: null,
+          startPosition: group.position.clone(),
+          startRotation: [group.rotation.x, group.rotation.y, group.rotation.z],
+          pointer: latestPointer.clone(),
+        }
+        movingRef.current = true
+        dragSourceRef.current = 'gizmo'
+        gl.domElement.style.cursor = key === 'g' ? 'move' : 'grabbing'
+        setOrbitEnabled(orbitControls, false)
+        keyboardGrabCallbacks.current.onMoveStart?.()
+        return
+      }
+
+      if (key === 'x' || key === 'y' || key === 'z') {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        grab.axis = key
+        grab.pointer.copy(latestPointer)
+        return
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        finish(true)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        finish(false)
+      }
+    }
+
+    function onPointerMove(event: PointerEvent) {
+      latestPointer.set(event.clientX, event.clientY)
+      const group = groupRef.current
+      if (!grab?.axis || !group) return
+      if (grab.mode === 'translate') {
+        const distance = projectedAxisDistance(
+          camera,
+          grab.startPosition,
+          GRAB_AXES[grab.axis],
+          new Vector2(event.clientX - grab.pointer.x, event.clientY - grab.pointer.y),
+          { width: gl.domElement.clientWidth, height: gl.domElement.clientHeight },
+        )
+        group.position.copy(grab.startPosition).addScaledVector(GRAB_AXES[grab.axis], snap(distance))
+      } else {
+        const rect = gl.domElement.getBoundingClientRect()
+        const projected = grab.startPosition.clone().project(camera)
+        const centerX = rect.left + (projected.x + 1) * rect.width / 2
+        const centerY = rect.top + (1 - projected.y) * rect.height / 2
+        const startAngle = Math.atan2(grab.pointer.y - centerY, grab.pointer.x - centerX)
+        const currentAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX)
+        let angle = currentAngle - startAngle
+        if (angle > Math.PI) angle -= Math.PI * 2
+        if (angle < -Math.PI) angle += Math.PI * 2
+        angle = snap(angle, ROTATION_SNAP)
+        group.position.copy(grab.startPosition)
+        group.rotation.set(...grab.startRotation)
+        group.quaternion.premultiply(new Quaternion().setFromAxisAngle(GRAB_AXES[grab.axis], angle))
+      }
+      const next = readTransform(group)
+      keyboardGrabCallbacks.current.onTransformLive(next.position, next.rotation)
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      if (!grab) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      if (event.button === 0) finish(true)
+      else if (event.button === 2) finish(false)
+    }
+
+    window.addEventListener('keydown', onKeyDown, true)
+    window.addEventListener('pointermove', onPointerMove, true)
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => {
+      if (grab) finish(false)
+      window.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('pointermove', onPointerMove, true)
+      window.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [camera, gl, interactive, orbitControls, showGizmo])
 
   useLayoutEffect(() => {
     if (movingRef.current) return
