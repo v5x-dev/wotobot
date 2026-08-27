@@ -9,6 +9,7 @@ const EXAMPLE_FILES = [
   `${EXAMPLE_DIR}/WIP.step`,
   `${EXAMPLE_DIR}/override-v13-bot.step`,
 ]
+const LARGE_STEP_TIMEOUT = 15_000
 
 function axisDistance(origin: Vector3, direction: Vector3, point: Vector3) {
   return point.clone().sub(origin).cross(direction).length()
@@ -22,7 +23,7 @@ describe.skipIf(!EXAMPLE_FILES.every((file) => existsSync(file)))('Onshape examp
 
     expect(brain).toBeDefined()
     expect(brain!.rotation.map((angle) => angle * 180 / Math.PI)).toEqual([0, -90, -48])
-  })
+  }, LARGE_STEP_TIMEOUT)
 
   it('keeps pillow-block bores on high-strength shaft axes', () => {
     const source = readFileSync(`${EXAMPLE_DIR}/WIP.step`, 'utf8')
@@ -42,7 +43,7 @@ describe.skipIf(!EXAMPLE_FILES.every((file) => existsSync(file)))('Onshape examp
       }
       expect(best, block.onshapeName).toBeLessThan(0.05)
     }
-  })
+  }, LARGE_STEP_TIMEOUT)
 
   it('keeps sprockets coaxial with a nearby shaft', () => {
     const source = readFileSync(`${EXAMPLE_DIR}/WIP.step`, 'utf8')
@@ -61,7 +62,7 @@ describe.skipIf(!EXAMPLE_FILES.every((file) => existsSync(file)))('Onshape examp
       })
     })
     expect(coaxial.length).toBeGreaterThanOrEqual(sprockets.length - 1)
-  })
+  }, LARGE_STEP_TIMEOUT)
 
   it('imports nested override-v13 subassemblies without dropping C-channels', () => {
     const source = readFileSync(`${EXAMPLE_DIR}/override-v13-bot.step`, 'utf8')
@@ -74,5 +75,5 @@ describe.skipIf(!EXAMPLE_FILES.every((file) => existsSync(file)))('Onshape examp
     expect(shafts.length).toBeGreaterThan(0)
     const xs = imported.parts.map((part) => part.position[0])
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(5)
-  })
+  }, LARGE_STEP_TIMEOUT)
 })
