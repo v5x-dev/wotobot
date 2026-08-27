@@ -1764,7 +1764,7 @@ export const PARTS: PartDefinition[] = [
     param2: null,
     variants: [],
     mesh: {
-      meshName: "Brain",
+      meshName: "BRAN",
       fbx: "Electronics/Brain.fbx",
     },
   },

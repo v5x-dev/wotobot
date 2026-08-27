@@ -28,7 +28,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { PARTS } from "@/model/partsCatalog";
 import {
@@ -168,7 +167,7 @@ export function AddSidebar({
       </SidebarHeader>
       <Popover open={placing || (replacing && selectedKey != null)}>
         <SidebarContent>
-          {PARTS_BY_GROUP.map(({ groupName, items }, groupIndex) => {
+          {PARTS_BY_GROUP.map(({ groupName, items }) => {
             const visible = items.filter((part) => matchesSearch(part, search));
             if (visible.length === 0) return null;
             return (

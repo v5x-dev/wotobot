@@ -18,7 +18,7 @@ import {
   type Material,
   type Object3D,
 } from 'three'
-import { mergeGroups } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGroups, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
 import { SelectablePart } from './SelectablePart'
 import { consumeGizmoPointer } from './gizmoPointer'
 import { partTriangleName, type PartTriangleTotals } from './partTriangles'
@@ -168,12 +168,21 @@ function makePreviewMaterial(material: Material) {
   return previewMaterial
 }
 
+function brainMaterial(material: Material) {
+  const result = toPartMaterial(material)
+  if (result.color.getHex() < 0x101010) result.color.set('#4a4e55')
+  result.metalness = 0.05
+  result.roughness = 0.7
+  return result
+}
+
 function prepareFbxClone(
   source: Object3D,
   finish: MeshFinish,
   rotation?: [number, number, number],
   color?: [number, number, number] | null,
   metalness?: number,
+  preserveSourceColors = false,
 ) {
   const clone = source.clone(true)
   clone.position.set(0, 0, 0)
@@ -183,18 +192,25 @@ function prepareFbxClone(
     const mesh = obj as Mesh
     if (!mesh.isMesh) return
 
+    if (preserveSourceColors) mesh.geometry = toCreasedNormals(mesh.geometry, Math.PI / 3)
     compactMeshGroups(mesh)
     mesh.material =
       finish === 'model' || finish === 'model-preview'
         ? Array.isArray(mesh.material)
-          ? mesh.material.map(finish === 'model-preview' ? makePreviewMaterial : toPartMaterial)
-          : (finish === 'model-preview' ? makePreviewMaterial : toPartMaterial)(mesh.material)
+          ? mesh.material.map((material) => {
+              const result = preserveSourceColors ? brainMaterial(material) : toPartMaterial(material)
+              return finish === 'model-preview' ? makePreviewMaterial(result) : result
+            })
+          : (() => {
+              const result = preserveSourceColors ? brainMaterial(mesh.material) : toPartMaterial(mesh.material)
+              return finish === 'model-preview' ? makePreviewMaterial(result) : result
+            })()
         : surfaceMaterial(finish)
     if (finish.endsWith('-preview')) mesh.raycast = noopRaycast
-    const partColor = color ?? DEFAULT_PART_COLOR
+    const partColor = color ?? (preserveSourceColors ? null : DEFAULT_PART_COLOR)
     const apply = (material: Material) => {
       if (!(material instanceof MeshStandardMaterial)) return
-      material.color.setRGB(...partColor)
+      if (partColor) material.color.setRGB(...partColor)
       if (metalness != null) material.metalness = metalness
     }
     if (Array.isArray(mesh.material)) mesh.material.forEach(apply)
@@ -315,6 +331,7 @@ function FbxMeshPart({
   finish = 'model',
   color = null,
   metalness,
+  preserveSourceColors = false,
 }: {
   url: string
   meshName: string
@@ -323,12 +340,13 @@ function FbxMeshPart({
   finish?: MeshFinish
   color?: [number, number, number] | null
   metalness?: number
+  preserveSourceColors?: boolean
 }) {
   const fbx = useFBX(url)
   const object = useMemo(() => {
     const source = findNamedObject(fbx, meshName) ?? firstMesh(fbx) ?? fbx
-    return prepareFbxClone(source, finish, rotation, color, metalness)
-  }, [fbx, meshName, finish, rotation, color, metalness])
+    return prepareFbxClone(source, finish, rotation, color, metalness, preserveSourceColors)
+  }, [fbx, meshName, finish, rotation, color, metalness, preserveSourceColors])
 
   return <primitive object={object} scale={scale ?? [1, 1, 1]} />
 }
@@ -782,6 +800,7 @@ export function PlacedPartMesh({
         finish={isPreview ? 'model-preview' : 'model'}
         color={part.color}
         metalness={definition.id === 'TANK' ? aluminum.metalness : undefined}
+        preserveSourceColors={definition.id === 'BRAN'}
       />
       {holes}
     </>
@@ -851,6 +870,7 @@ type InstancedCatalogGroup = {
   scale: number
   modelRotation: [number, number, number]
   metalness?: number
+  preserveSourceColors: boolean
 }
 
 function instancedCatalogDetails(part: PlacedPart): Omit<InstancedCatalogGroup, 'signature' | 'parts'> | null {
@@ -868,6 +888,7 @@ function instancedCatalogDetails(part: PlacedPart): Omit<InstancedCatalogGroup, 
     scale: modelScaleFor(fbx, variant?.meshName || definition.mesh?.meshName || definition.name),
     modelRotation: fbx === 'pnmatics/NewRes.fbx' ? [Math.PI, 0, 0] : MODEL_ROTATION,
     metalness: definition.id === 'TANK' ? aluminum.metalness : undefined,
+    preserveSourceColors: definition.id === 'BRAN',
   }
 }
 
@@ -899,6 +920,7 @@ function InstancedCatalogParts({
       group.modelRotation,
       group.parts[0]?.color,
       group.metalness,
+      group.preserveSourceColors,
     )
     object.scale.setScalar(group.scale)
     object.updateMatrixWorld(true)
